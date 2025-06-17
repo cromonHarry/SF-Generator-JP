@@ -1,13 +1,33 @@
 # ============================
 # 改良版近未来SF生成器 - 日文多轮对话版
+# Streamlit Cloud 兼容版本
 # ============================
 import streamlit as st
 import json
 import re
 import time
 from openai import OpenAI
-import wikipedia
-import requests
+
+# 安全导入可选依赖
+try:
+    import wikipedia
+    WIKIPEDIA_AVAILABLE = True
+except ImportError:
+    WIKIPEDIA_AVAILABLE = False
+    st.error("Wikipedia模块未安装。请联系管理员。")
+
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+
+# 设置页面配置
+st.set_page_config(
+    page_title="近未来SF生成器", 
+    page_icon="🚀",
+    layout="wide"
+)
 
 # ========== Multi-page setup ==========
 if 'page' not in st.session_state:
@@ -15,7 +35,6 @@ if 'page' not in st.session_state:
 
 # ========== Visualization Page ==========
 if st.session_state.page == "visualization":
-    st.set_page_config(page_title="APモデル可視化", layout="wide")
     
     st.title("🔬 APモデル可視化")
     st.markdown("APモデルの3段階の進化を可視化します。")
@@ -23,7 +42,7 @@ if st.session_state.page == "visualization":
     # Check if AP model data exists
     if 'ap_history' in st.session_state and st.session_state.ap_history:
         # Create the HTML visualization
-        html_content = '''
+        html_content = f'''
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -31,36 +50,36 @@ if st.session_state.page == "visualization":
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>APモデル可視化</title>
     <style>
-        body {
+        body {{
             font-family: Arial, sans-serif;
             background-color: #f5f5f5;
             margin: 0;
             padding: 20px;
-        }
+        }}
         
-        .container {
+        .container {{
             max-width: 95vw;
             margin: 0 auto;
             background: white;
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
+        }}
 
-        .vis-wrapper {
+        .vis-wrapper {{
             overflow-x: auto;
             border: 1px solid #ddd;
             border-radius: 10px;
-        }
+        }}
         
-        .visualization {
+        .visualization {{
             position: relative;
             width: 2200px;
             height: 700px;
             background: #fafafa;
-        }
+        }}
         
-        .node {
+        .node {{
             position: absolute;
             width: 140px;
             height: 140px;
@@ -78,30 +97,30 @@ if st.session_state.page == "visualization":
             line-height: 1.2;
             padding: 15px;
             box-sizing: border-box;
-        }
+        }}
         
-        .node:hover {
+        .node:hover {{
             transform: scale(1.1);
             z-index: 100;
-        }
+        }}
         
         /* Node Colors */
-        .node-前衛的社会問題 { background: #ff9999; }
-        .node-人々の価値観 { background: #ecba13; }
-        .node-社会問題 { background: #ffff99; }
-        .node-技術や資源 { background: #99cc99; }
-        .node-日常の空間とユーザー体験 { background: #99cccc; }
-        .node-制度 { background: #9999ff; }
+        .node-前衛的社会問題 {{ background: #ff9999; }}
+        .node-人々の価値観 {{ background: #ecba13; }}
+        .node-社会問題 {{ background: #ffff99; }}
+        .node-技術や資源 {{ background: #99cc99; }}
+        .node-日常の空間とユーザー体験 {{ background: #99cccc; }}
+        .node-制度 {{ background: #9999ff; }}
         
-        .arrow {
+        .arrow {{
             position: absolute;
             height: 2px;
             background: #333;
             transform-origin: left center;
             z-index: 1;
-        }
+        }}
         
-        .arrow::after {
+        .arrow::after {{
             content: '';
             position: absolute;
             right: -8px;
@@ -111,9 +130,9 @@ if st.session_state.page == "visualization":
             border-left: 8px solid #333;
             border-top: 4px solid transparent;
             border-bottom: 4px solid transparent;
-        }
+        }}
         
-        .arrow-label {
+        .arrow-label {{
             position: absolute;
             background: white;
             padding: 2px 8px;
@@ -123,18 +142,18 @@ if st.session_state.page == "visualization":
             white-space: nowrap;
             transform: translate(-50%, -50%);
             z-index: 10;
-        }
+        }}
         
-        .dotted-arrow {
+        .dotted-arrow {{
             border-top: 2px dotted #333;
             background: transparent;
-        }
+        }}
         
-        .dotted-arrow::after {
+        .dotted-arrow::after {{
             border-left-color: #333;
-        }
+        }}
         
-        .tooltip {
+        .tooltip {{
             position: absolute;
             background: rgba(0,0,0,0.9);
             color: white;
@@ -147,11 +166,11 @@ if st.session_state.page == "visualization":
             opacity: 0;
             transition: opacity 0.3s;
             line-height: 1.4;
-        }
+        }}
         
-        .tooltip.show {
+        .tooltip.show {{
             opacity: 1;
-        }
+        }}
     </style>
 </head>
 <body>
@@ -169,107 +188,111 @@ if st.session_state.page == "visualization":
     <script>
         const visualization = document.getElementById('visualization');
         const tooltip = document.getElementById('tooltip');
-        let allNodes = {};
+        let allNodes = {{}};
 
         // Load AP model data from session state
-        const apModelData = ''' + json.dumps(st.session_state.ap_history, ensure_ascii=False) + ''';
+        const apModelData = {json.dumps(st.session_state.ap_history, ensure_ascii=False)};
 
-        function getNodePosition(stageIndex, nodeType) {
+        function getNodePosition(stageIndex, nodeType) {{
             const stageWidth = 700;
             const xOffset = stageIndex * stageWidth;
             
-            if (stageIndex % 2 === 0) { 
-                switch(nodeType) {
-                    case '制度':                      return { x: xOffset + 355, y: 50 };
-                    case '日常の空間とユーザー体験':  return { x: xOffset + 180, y: 270 };
-                    case '社会問題':                  return { x: xOffset + 530, y: 270 };
-                    case '技術や資源':              return { x: xOffset + 50,  y: 500 };
-                    case '前衛的社会問題':            return { x: xOffset + 355, y: 500 };
-                    case '人々の価値観':              return { x: xOffset + 660, y: 500 };
+            if (stageIndex % 2 === 0) {{ 
+                switch(nodeType) {{
+                    case '制度':                      return {{ x: xOffset + 355, y: 50 }};
+                    case '日常の空間とユーザー体験':  return {{ x: xOffset + 180, y: 270 }};
+                    case '社会問題':                  return {{ x: xOffset + 530, y: 270 }};
+                    case '技術や資源':              return {{ x: xOffset + 50,  y: 500 }};
+                    case '前衛的社会問題':            return {{ x: xOffset + 355, y: 500 }};
+                    case '人々の価値観':              return {{ x: xOffset + 660, y: 500 }};
                     default:                        return null;
-                }
-            } else { 
-                switch(nodeType) {
-                    case '技術や資源':              return { x: xOffset + 50,  y: 50 };
-                    case '前衛的社会問題':            return { x: xOffset + 355, y: 50 };
-                    case '人々の価値観':              return { x: xOffset + 660, y: 50 };
-                    case '日常の空間とユーザー体験':  return { x: xOffset + 180, y: 270 };
-                    case '社会問題':                  return { x: xOffset + 530, y: 270 };
-                    case '制度':                      return { x: xOffset + 355, y: 500 };
+                }}
+            }} else {{ 
+                switch(nodeType) {{
+                    case '技術や資源':              return {{ x: xOffset + 50,  y: 50 }};
+                    case '前衛的社会問題':            return {{ x: xOffset + 355, y: 50 }};
+                    case '人々の価値観':              return {{ x: xOffset + 660, y: 50 }};
+                    case '日常の空間とユーザー体験':  return {{ x: xOffset + 180, y: 270 }};
+                    case '社会問題':                  return {{ x: xOffset + 530, y: 270 }};
+                    case '制度':                      return {{ x: xOffset + 355, y: 500 }};
                     default:                        return null;
-                }
-            }
-        }
+                }}
+            }}
+        }}
 
-        function renderAllStages() {
+        function renderAllStages() {{
             visualization.innerHTML = '';
-            allNodes = {}; 
+            allNodes = {{}}; 
 
-            apModelData.forEach((stageData, stageIndex) => {
-                stageData.ap_model.nodes.forEach(nodeData => {
-                    const position = getNodePosition(stageIndex, nodeData.type);
-                    if (!position) return;
+            apModelData.forEach((stageData, stageIndex) => {{
+                if (stageData.ap_model && stageData.ap_model.nodes) {{
+                    stageData.ap_model.nodes.forEach(nodeData => {{
+                        const position = getNodePosition(stageIndex, nodeData.type);
+                        if (!position) return;
 
-                    const node = document.createElement('div');
-                    node.className = `node node-${nodeData.type}`;
-                    node.style.left = position.x + 'px';
-                    node.style.top = position.y + 'px';
-                    node.textContent = nodeData.type;
-                    node.dataset.definition = nodeData.definition;
-                    node.dataset.id = `s${stageData.stage}-${nodeData.type}`;
+                        const node = document.createElement('div');
+                        node.className = `node node-${{nodeData.type}}`;
+                        node.style.left = position.x + 'px';
+                        node.style.top = position.y + 'px';
+                        node.textContent = nodeData.type;
+                        node.dataset.definition = nodeData.definition || '';
+                        node.dataset.id = `s${{stageData.stage}}-${{nodeData.type}}`;
 
-                    node.addEventListener('mouseenter', showTooltip);
-                    node.addEventListener('mouseleave', hideTooltip);
+                        node.addEventListener('mouseenter', showTooltip);
+                        node.addEventListener('mouseleave', hideTooltip);
 
-                    visualization.appendChild(node);
-                    allNodes[node.dataset.id] = node;
-                });
-            });
+                        visualization.appendChild(node);
+                        allNodes[node.dataset.id] = node;
+                    }});
+                }}
+            }});
 
-            apModelData.forEach((stageData, stageIndex) => {
+            apModelData.forEach((stageData, stageIndex) => {{
                 const nextStage = apModelData[stageIndex + 1];
 
-                stageData.ap_model.arrows.forEach(arrowData => {
-                    const isLastStage = !nextStage;
-                    const arrowType = arrowData.type;
-                    const typesToHideInLastStage = ['標準化', '組織化', '意味付け', '習慣化'];
+                if (stageData.ap_model && stageData.ap_model.arrows) {{
+                    stageData.ap_model.arrows.forEach(arrowData => {{
+                        const isLastStage = !nextStage;
+                        const arrowType = arrowData.type;
+                        const typesToHideInLastStage = ['標準化', '組織化', '意味付け', '習慣化'];
 
-                    if (isLastStage && typesToHideInLastStage.includes(arrowType)) {
-                        return;
-                    }
-                    
-                    let sourceNode = allNodes[`s${stageData.stage}-${arrowData.source}`];
-                    let targetNode;
-                    let isInterStage = false;
+                        if (isLastStage && typesToHideInLastStage.includes(arrowType)) {{
+                            return;
+                        }}
+                        
+                        let sourceNode = allNodes[`s${{stageData.stage}}-${{arrowData.source}}`];
+                        let targetNode;
+                        let isInterStage = false;
 
-                    if (nextStage && (arrowType === '組織化' || arrowType === '標準化')) {
-                        targetNode = allNodes[`s${nextStage.stage}-技術や資源`];
-                        isInterStage = !!targetNode;
-                    } else if (nextStage && arrowType === '意味付け') {
-                        targetNode = allNodes[`s${nextStage.stage}-日常の空間とユーザー体験`];
-                        isInterStage = !!targetNode;
-                    } else if (nextStage && arrowType === '習慣化') {
-                        targetNode = allNodes[`s${nextStage.stage}-制度`];
-                        isInterStage = !!targetNode;
-                    }
+                        if (nextStage && (arrowType === '組織化' || arrowType === '標準化')) {{
+                            targetNode = allNodes[`s${{nextStage.stage}}-技術や資源`];
+                            isInterStage = !!targetNode;
+                        }} else if (nextStage && arrowType === '意味付け') {{
+                            targetNode = allNodes[`s${{nextStage.stage}}-日常の空間とユーザー体験`];
+                            isInterStage = !!targetNode;
+                        }} else if (nextStage && arrowType === '習慣化') {{
+                            targetNode = allNodes[`s${{nextStage.stage}}-制度`];
+                            isInterStage = !!targetNode;
+                        }}
 
-                    if (!isInterStage) {
-                        targetNode = allNodes[`s${stageData.stage}-${arrowData.target}`];
-                    }
+                        if (!isInterStage) {{
+                            targetNode = allNodes[`s${{stageData.stage}}-${{arrowData.target}}`];
+                        }}
 
-                    if (sourceNode && targetNode) {
-                        const isDotted = arrowData.type === 'アート（社会批評）' || arrowData.type === 'アート(社会批評)' || arrowData.type === 'メディア';
-                        createArrow(sourceNode, targetNode, arrowData, isDotted);
-                    }
-                });
-            });
-        }
+                        if (sourceNode && targetNode) {{
+                            const isDotted = arrowData.type === 'アート（社会批評）' || arrowData.type === 'アート(社会批評)' || arrowData.type === 'メディア';
+                            createArrow(sourceNode, targetNode, arrowData, isDotted);
+                        }}
+                    }});
+                }}
+            }});
+        }}
 
-        function createArrow(sourceNode, targetNode, arrowData, isDotted) {
+        function createArrow(sourceNode, targetNode, arrowData, isDotted) {{
             const nodeRadius = 70;
             
-            const startPos = { x: parseFloat(sourceNode.style.left), y: parseFloat(sourceNode.style.top) };
-            const endPos = { x: parseFloat(targetNode.style.left), y: parseFloat(targetNode.style.top) };
+            const startPos = {{ x: parseFloat(sourceNode.style.left), y: parseFloat(sourceNode.style.top) }};
+            const endPos = {{ x: parseFloat(targetNode.style.left), y: parseFloat(targetNode.style.top) }};
 
             const dx = (endPos.x + nodeRadius) - (startPos.x + nodeRadius);
             const dy = (endPos.y + nodeRadius) - (startPos.y + nodeRadius);
@@ -285,7 +308,7 @@ if st.session_state.page == "visualization":
             arrow.style.left = adjustedStartX + 'px';
             arrow.style.top = adjustedStartY + 'px';
             arrow.style.width = adjustedDistance + 'px';
-            arrow.style.transform = `rotate(${angle}deg)`;
+            arrow.style.transform = `rotate(${{angle}}deg)`;
 
             const label = document.createElement('div');
             label.className = 'arrow-label';
@@ -296,30 +319,35 @@ if st.session_state.page == "visualization":
             label.style.left = labelX + 'px';
             label.style.top = labelY + 'px';
             
-            label.dataset.definition = arrowData.definition;
+            label.dataset.definition = arrowData.definition || '';
             label.addEventListener('mouseenter', showTooltip);
             label.addEventListener('mouseleave', hideTooltip);
 
             visualization.appendChild(arrow);
             visualization.appendChild(label);
-        }
+        }}
 
-        function showTooltip(event) {
+        function showTooltip(event) {{
             const definition = event.target.dataset.definition;
-            if (definition) {
+            if (definition) {{
                 tooltip.innerHTML = definition;
                 tooltip.style.left = (event.pageX + 15) + 'px';
                 tooltip.style.top = (event.pageY - 10) + 'px';
                 tooltip.classList.add('show');
-            }
-        }
+            }}
+        }}
 
-        function hideTooltip() {
+        function hideTooltip() {{
             tooltip.classList.remove('show');
-        }
+        }}
 
         // Initialize visualization
-        renderAllStages();
+        try {{
+            renderAllStages();
+        }} catch (error) {{
+            console.error('Visualization error:', error);
+            document.getElementById('visualization').innerHTML = '<p style="text-align: center; padding: 50px;">可視化エラーが発生しました。</p>';
+        }}
     </script>
 </body>
 </html>
@@ -359,7 +387,13 @@ if st.session_state.page == "visualization":
     st.stop()
 
 # ========== Main Page ==========
-client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+
+# 检查API密钥
+try:
+    client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+except Exception as e:
+    st.error("OpenAI API密钥未配置。请在Streamlit Cloud的Secrets中添加openai.api_key。")
+    st.stop()
 
 # System prompt in Japanese
 SYSTEM_PROMPT = """君はサイエンスフィクションの専門家であり、「アーキオロジカル・プロトタイピング（Archaeological Prototyping, 以下AP）」モデルに基づいて社会を分析します。以下はこのモデルの紹介です。
@@ -425,13 +459,16 @@ def parse_json_response(gpt_output: str) -> dict:
     try:
         return json.loads(result_str)
     except Exception as e:
-        raise e
+        st.error(f"JSON解析エラー: {e}")
+        return {"nodes": [], "arrows": []}
 
 def search_wikipedia_candidates(keyword: str, max_results: int = 5):
     """Wikipedia検索結果から候補を取得"""
-    wikipedia.set_lang("ja")
-    
+    if not WIKIPEDIA_AVAILABLE:
+        return []
+        
     try:
+        wikipedia.set_lang("ja")
         results = wikipedia.search(keyword, results=max_results)
         candidates = []
         
@@ -449,6 +486,7 @@ def search_wikipedia_candidates(keyword: str, max_results: int = 5):
         
         return candidates
     except Exception as e:
+        st.error(f"Wikipedia検索エラー: {e}")
         return []
 
 def create_introduction_from_content(product: str, content: str) -> str:
@@ -456,14 +494,18 @@ def create_introduction_from_content(product: str, content: str) -> str:
     user_prompt = f"""
 これは{product}に関するwiki記事です、その内容をまとめて、{product}の紹介を出力してください。100字日本語以内。
 ###記事内容:
-{content}
+{content[:2000]}  
 """
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": user_prompt}],
-        temperature=0
-    )
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": user_prompt}],
+            temperature=0
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"紹介文生成エラー: {e}")
+        return f"{product}に関する基本的な情報です。"
 
 def analyze_content_with_gpt(product: str, content: str) -> dict:
     """第1段階用：Wikipedia内容からAP要素を抽出"""
@@ -479,18 +521,21 @@ def analyze_content_with_gpt(product: str, content: str) -> dict:
 
 なお、[起点対象, 終点対象, 射]の組み合わせは、APモデルで定義された関係性に従っている必要があります。該当する内容が見つからない場合は、リストを空のまま返してください。
 ###記事内容:
-{content}
+{content[:3000]}
 """
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0
-    )
-    
-    return parse_json_response(response.choices[0].message.content)
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0
+        )
+        return parse_json_response(response.choices[0].message.content)
+    except Exception as e:
+        st.error(f"AP要素抽出エラー: {e}")
+        return {"nodes": [], "arrows": []}
 
 def update_to_next_stage(product: str, ap_model: list[dict], description: list[str], imagination: str, stage: int):
     """次段階への更新内容を生成"""
@@ -498,7 +543,7 @@ def update_to_next_stage(product: str, ap_model: list[dict], description: list[s
 今は{product}に関するAPモデルを次のSカーブ段階に更新してください。以下はAPモデルの情報です：
 """
     for i in range(len(ap_model)):
-        temp += f"##第{i+1}段階のAPモデル:\n{ap_model[i]}\n"
+        temp += f"##第{i+1}段階のAPモデル:\n{json.dumps(ap_model[i], ensure_ascii=False)}\n"
     for j in range(len(description)):
         temp += f"##第{j+1}段階の{product}の説明:\n{description[j]}\n"
     if stage == 2:
@@ -514,19 +559,20 @@ Sカーブに基づき、第{stage}段階における新しい対象「技術や
 "daily_experience": "第{stage}段階日常の空間とユーザー体験の具体的内容"}}
 """
     
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": temp}
-        ],
-        temperature=0
-    )
-    
     try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": temp}
+            ],
+            temperature=0
+        )
+        
         result = parse_json_response(response.choices[0].message.content)
-        return result["introduction"], result["tech_resources"], result["daily_experience"]
+        return result.get("introduction", f"第{stage}段階の{product}の発展"), result.get("tech_resources", "技術や資源の内容"), result.get("daily_experience", "日常の空間とユーザー体験の内容")
     except Exception as e:
+        st.error(f"次段階更新エラー: {e}")
         return f"第{stage}段階の{product}の発展", "技術や資源の内容", "日常の空間とユーザー体験の内容"
 
 def update_ap_model(product: str, ap_model: list[dict], description: list[str], tech_resources: str, daily_experience: str, stage: int) -> dict:
@@ -536,7 +582,7 @@ def update_ap_model(product: str, ap_model: list[dict], description: list[str], 
 
 ##前段階の情報:
 第{stage-1}段階の{product}の説明: {description[stage-2]}
-第{stage-1}段階のAPモデル: {ap_model[stage-2]}
+第{stage-1}段階のAPモデル: {json.dumps(ap_model[stage-2], ensure_ascii=False)}
 
 ##現段階の情報:
 構想：{description[stage-1]}
@@ -552,19 +598,20 @@ def update_ap_model(product: str, ap_model: list[dict], description: list[str], 
 {{"nodes": [{{"type": "対象名", "definition": "この対象に関する説明"}}], "arrows": [{{"source": "起点対象", "target": "終点対象", "type": "射名", "definition": "この射に関する説明"}}]}}
 """
     
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0
-    )
-    
     try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0
+        )
+        
         result = parse_json_response(response.choices[0].message.content)
         return result
     except Exception as e:
+        st.error(f"APモデル構築エラー: {e}")
         return {"nodes": [], "arrows": []}
 
 def generate_story(product: str, ap_model: list[dict], description: list[str]) -> str:
@@ -575,7 +622,7 @@ def generate_story(product: str, ap_model: list[dict], description: list[str]) -
     for i in range(len(ap_model)):
         user_prompt += f"""
 ##第{i+1}段階のAPモデル:
-{ap_model[i]}
+{json.dumps(ap_model[i], ensure_ascii=False)}
 ##第{i+1}段階の{product}の説明:
 {description[i]}
 
@@ -583,19 +630,27 @@ def generate_story(product: str, ap_model: list[dict], description: list[str]) -
     user_prompt += f"""
 それでは{product}をテーマとしてAPモデルの内容を基づき、近未来短編SF小説を生成してください。**重要**: 文字数は日本語1000字程度で。
 """
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ],
-    )
-
-    return response.choices[0].message.content
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ],
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"SF小説生成エラー: {e}")
+        return f"{product}に関するSF小説の生成に失敗しました。"
 
 # Main UI
 st.title("🚀 近未来SF生成器")
 st.markdown("APモデルに基づいて3段階の進化タイムラインとSF小説を生成するアプリケーションです。")
+
+# Check if Wikipedia is available
+if not WIKIPEDIA_AVAILABLE:
+    st.warning("Wikipedia検索機能が利用できません。管理者にお問い合わせください。")
 
 # Multi-step conversation interface
 if st.session_state.conversation_step == 0:
@@ -606,7 +661,7 @@ if st.session_state.conversation_step == 0:
                             placeholder="例：食べ物、技術、文化など",
                             key="interest_input")
     
-    if st.button("次へ進む", disabled=not interest):
+    if st.button("次へ進む", disabled=not interest or not WIKIPEDIA_AVAILABLE):
         st.session_state.user_inputs['interest'] = interest
         # Search Wikipedia
         with st.spinner("Wikipediaで検索中..."):
@@ -800,8 +855,8 @@ elif st.session_state.conversation_step == 7:
             with col2:
                 st.markdown("**APモデル要素数:**")
                 model = st.session_state.ap_history[i]["ap_model"]
-                st.markdown(f"- 対象数: {len(model['nodes'])}/6")
-                st.markdown(f"- 射数: {len(model['arrows'])}/12")
+                st.markdown(f"- 対象数: {len(model.get('nodes', []))}/6")
+                st.markdown(f"- 射数: {len(model.get('arrows', []))}/12")
     
     # Display story
     st.markdown("### 📚 生成されたSF短編小説")
