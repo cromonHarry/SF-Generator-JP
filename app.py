@@ -413,6 +413,10 @@ if 'story' not in st.session_state:
     st.session_state.story = ""
 if 'generating' not in st.session_state:
     st.session_state.generating = False
+if 'improvement_suggestions' not in st.session_state:
+    st.session_state.improvement_suggestions = []
+if 'improvement_directions' not in st.session_state:
+    st.session_state.improvement_directions = []
 
 # Helper functions
 def parse_json_response(gpt_output: str) -> dict:
@@ -465,6 +469,33 @@ def create_introduction_from_content(product: str, content: str) -> str:
     )
     return response.choices[0].message.content
 
+def generate_improvement_suggestions(topic: str, problems: str) -> list:
+    """基于问题生成改进建议选项"""
+    user_prompt = f"""
+用户选择的主题是「{topic}」，他们认为当前存在的问题是：{problems}
+
+请根据这些问题，生成5个具体的改进建议选项。每个选项用一句话描述，要具体且可操作。
+
+以JSON格式输出：
+{{"suggestions": ["建议1的描述", "建议2的描述", "建议3的描述", "建议4的描述", "建议5的描述"]}}
+"""
+    
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.7
+    )
+    
+    try:
+        result = parse_json_response(response.choices[0].message.content)
+        return result["suggestions"]
+    except Exception as e:
+        # 如果解析失败，返回默认建议
+        return ["技術革新による効率化", "ユーザー体験の向上", "環境配慮の強化", "コスト削減", "アクセシビリティの改善"]
+
 def analyze_content_with_gpt(product: str, content: str) -> dict:
     """第1段階用：Wikipedia内容からAP要素を抽出"""
     user_prompt = f"""
@@ -487,10 +518,48 @@ def analyze_content_with_gpt(product: str, content: str) -> dict:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=0
+        temperature=0.7
     )
     
-    return parse_json_response(response.choices[0].message.content)
+    try:
+        result = parse_json_response(response.choices[0].message.content)
+        return result["suggestions"]
+    except Exception as e:
+        return ["技術革新による効率化", "ユーザー体験の向上", "環境配慮の強化", "コスト削減", "アクセシビリティの改善"]
+
+def generate_improvement_directions(topic: str, selected_suggestions: list, custom_input: str = "") -> list:
+    """根据选择的建议生成具体改进方向"""
+    suggestions_text = "、".join(selected_suggestions)
+    custom_text = f"また、ユーザーからの追加意見：{custom_input}" if custom_input else ""
+    
+    user_prompt = f"""
+用户选择的主题是「{topic}」。
+用户选择的改进建议：{suggestions_text}
+{custom_text}
+
+请基于这些选择的建议，生成3-4个具体的改进方向。每个方向要：
+1. 具体且可行
+2. 与用户选择的建议相关
+3. 面向未来发展
+
+以JSON格式输出：
+{{"directions": ["方向1的具体描述", "方向2的具体描述", "方向3的具体描述", "方向4的具体描述"]}}
+"""
+    
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.7
+    )
+    
+    try:
+        result = parse_json_response(response.choices[0].message.content)
+        return result["directions"]
+    except Exception as e:
+        return ["技術的な革新による機能向上", "ユーザビリティの改善", "持続可能性の強化"]
 
 def update_to_next_stage(product: str, ap_model: list[dict], description: list[str], imagination: str, stage: int):
     """次段階への更新内容を生成"""
@@ -635,47 +704,128 @@ elif st.session_state.conversation_step == 1:
             st.rerun()
 
 elif st.session_state.conversation_step == 2:
-    st.subheader("ステップ3: 未来の発展方向")
-    st.markdown(f"「{st.session_state.selected_topic}」が未来にどのような方向に発展してほしいですか？")
+    st.subheader("ステップ2: 現状評価")
+    st.markdown(f"「{st.session_state.selected_topic}」について、現在の発展状況をどう評価しますか？")
     
-    direction = st.radio(
-        "発展方向を選択してください:",
-        ["技術革新", "体験向上", "環境保護"],
-        key="direction_radio"
+    # 评分滑块
+    rating = st.slider(
+        "現在の発展状況を評価してください",
+        min_value=1,
+        max_value=10,
+        value=5,
+        help="1点=非常に不満足、10点=非常に満足",
+        key="rating_slider"
     )
     
+    # 显示评分说明
+    if rating <= 3:
+        st.markdown("🔴 **不満足** - 大幅な改善が必要です")
+    elif rating <= 6:
+        st.markdown("🟡 **普通** - 改善の余地があります")
+    elif rating <= 8:
+        st.markdown("🟢 **満足** - 良好な状態です")
+    else:
+        st.markdown("🔵 **非常に満足** - 優秀な状態です")
+    
     if st.button("次へ進む"):
-        st.session_state.user_inputs['direction'] = direction
+        st.session_state.user_inputs['rating'] = rating
         st.session_state.conversation_step = 3
         st.rerun()
 
 elif st.session_state.conversation_step == 3:
-    st.subheader("ステップ4: 未来のビジョン")
-    st.markdown("一文で、この対象が未来にどのような姿になってほしいか描写してください。")
+    st.subheader("ステップ3: 問題の識別")
+    rating = st.session_state.user_inputs['rating']
     
-    vision = st.text_area("未来のビジョン", 
-                         placeholder="例：より持続可能で効率的な技術として社会に貢献する姿",
-                         key="vision_input")
-    
-    if st.button("次へ進む", disabled=not vision):
-        st.session_state.user_inputs['vision'] = vision
-        st.session_state.conversation_step = 4
-        st.rerun()
+    if rating < 10:
+        st.markdown(f"評価が{rating}点だった理由について教えてください。")
+        st.markdown("**減点の主な原因は何だと思いますか？**")
+        
+        problems = st.text_area(
+            "具体的な問題点を教えてください",
+            placeholder="例：技術的な制約、コストの問題、使いやすさの課題など",
+            key="problems_input",
+            height=100
+        )
+        
+        if st.button("改善提案を生成", disabled=not problems):
+            st.session_state.user_inputs['problems'] = problems
+            
+            # 生成改进建议
+            with st.spinner("改善提案を生成中..."):
+                suggestions = generate_improvement_suggestions(st.session_state.selected_topic, problems)
+                st.session_state.improvement_suggestions = suggestions
+            
+            st.session_state.conversation_step = 4
+            st.rerun()
+    else:
+        st.success("完璧な評価ですね！それでも未来に向けてさらなる発展の可能性を探ってみましょう。")
+        if st.button("発展方向の検討へ"):
+            st.session_state.user_inputs['problems'] = "現状に満足しているが、さらなる発展を期待"
+            # 为满分情况生成通用改进建议
+            suggestions = ["技術革新による更なる向上", "新しい応用分野の開拓", "グローバル展開の強化", "持続可能性の向上", "次世代への継承"]
+            st.session_state.improvement_suggestions = suggestions
+            st.session_state.conversation_step = 4
+            st.rerun()
 
 elif st.session_state.conversation_step == 4:
-    st.subheader("ステップ5: 個人的なシナリオ")
-    st.markdown("あなた自身がその未来の姿と関わるシナリオを想像して描写してください。")
+    st.subheader("ステップ4: 改善提案の選択")
+    st.markdown("生成された改善提案から興味のあるものを選択してください（複数選択可）")
     
-    scenario = st.text_area("個人的なシナリオ", 
-                           placeholder="例：私はその技術を使って新しいサービスを開発し、多くの人の生活を改善したい",
-                           key="scenario_input")
+    # 显示生成的建议选项
+    selected_suggestions = []
     
-    if st.button("次へ進む", disabled=not scenario):
-        st.session_state.user_inputs['scenario'] = scenario
+    st.markdown("**AI生成の改善提案:**")
+    for i, suggestion in enumerate(st.session_state.improvement_suggestions):
+        if st.checkbox(suggestion, key=f"suggestion_{i}"):
+            selected_suggestions.append(suggestion)
+    
+    # 自定义输入
+    st.markdown("**追加のご意見（任意）:**")
+    custom_input = st.text_area(
+        "他にも改善したい点があれば教えてください",
+        placeholder="例：特定の機能の追加、新しいアプローチなど",
+        key="custom_suggestions",
+        height=80
+    )
+    
+    if st.button("次へ進む", disabled=not selected_suggestions):
+        st.session_state.user_inputs['selected_suggestions'] = selected_suggestions
+        st.session_state.user_inputs['custom_input'] = custom_input
+        
+        # 生成具体改进方向
+        with st.spinner("具体的な改善方向を生成中..."):
+            directions = generate_improvement_directions(
+                st.session_state.selected_topic, 
+                selected_suggestions, 
+                custom_input
+            )
+            st.session_state.improvement_directions = directions
+        
         st.session_state.conversation_step = 5
         st.rerun()
 
 elif st.session_state.conversation_step == 5:
+    st.subheader("ステップ5: 改善方向の決定")
+    st.markdown("以下の改善方向から最も興味のあるもの**1-2個**を選択してください")
+    
+    selected_directions = []
+    
+    for i, direction in enumerate(st.session_state.improvement_directions):
+        if st.checkbox(direction, key=f"direction_{i}"):
+            selected_directions.append(direction)
+    
+    # 限制选择数量
+    if len(selected_directions) > 2:
+        st.warning("選択は最大2個まででお願いします")
+    elif len(selected_directions) == 0:
+        st.info("少なくとも1つの方向を選択してください")
+    
+    if st.button("次へ進む", disabled=len(selected_directions) == 0 or len(selected_directions) > 2):
+        st.session_state.user_inputs['selected_directions'] = selected_directions
+        st.session_state.conversation_step = 6
+        st.rerun()
+
+elif st.session_state.conversation_step == 6:
     st.subheader("入力内容の確認")
     st.markdown("以下の内容でAPモデルを構築します。")
     
@@ -683,36 +833,49 @@ elif st.session_state.conversation_step == 5:
     with col1:
         st.markdown("**選択したテーマ:**")
         st.info(st.session_state.selected_topic)
-        st.markdown("**発展方向:**")
-        st.info(st.session_state.user_inputs['direction'])
+        st.markdown("**現状評価:**")
+        st.info(f"{st.session_state.user_inputs['rating']}点/10点")
+        st.markdown("**問題認識:**")
+        st.info(st.session_state.user_inputs['problems'])
         
     with col2:
-        st.markdown("**未来のビジョン:**")
-        st.info(st.session_state.user_inputs['vision'])
-        st.markdown("**個人的なシナリオ:**")
-        st.info(st.session_state.user_inputs['scenario'])
+        st.markdown("**選択した改善提案:**")
+        for suggestion in st.session_state.user_inputs['selected_suggestions']:
+            st.write(f"• {suggestion}")
+        
+        if st.session_state.user_inputs.get('custom_input'):
+            st.markdown("**追加意見:**")
+            st.info(st.session_state.user_inputs['custom_input'])
+        
+        st.markdown("**選択した改善方向:**")
+        for direction in st.session_state.user_inputs['selected_directions']:
+            st.write(f"• {direction}")
     
     col1, col2 = st.columns(2)
     with col1:
         if st.button("APモデルを生成", type="primary"):
-            st.session_state.conversation_step = 6
+            st.session_state.conversation_step = 7
             st.rerun()
     with col2:
         if st.button("最初からやり直し"):
             # Reset all states
             for key in ['conversation_step', 'user_inputs', 'wikipedia_candidates', 
                        'selected_topic', 'selected_content', 'ap_history', 
-                       'descriptions', 'story', 'generating']:
+                       'descriptions', 'story', 'generating', 'improvement_suggestions',
+                       'improvement_directions']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
 
-elif st.session_state.conversation_step == 6:
+elif st.session_state.conversation_step == 7:
     if not st.session_state.generating:
         st.session_state.generating = True
         
-        # Create imagination string
-        imagination = f"【発展方向】{st.session_state.user_inputs['direction']}。【未来のビジョン】{st.session_state.user_inputs['vision']}。【個人的なシナリオ】{st.session_state.user_inputs['scenario']}"
+        # 创建imagination字符串，基于新的输入内容
+        imagination = f"【現状評価】{st.session_state.user_inputs['rating']}点。【問題認識】{st.session_state.user_inputs['problems']}。【改善提案】{', '.join(st.session_state.user_inputs['selected_suggestions'])}。【改善方向】{', '.join(st.session_state.user_inputs['selected_directions'])}"
+        
+        if st.session_state.user_inputs.get('custom_input'):
+            imagination += f"【追加意見】{st.session_state.user_inputs['custom_input']}"
         
         # Progress tracking
         progress_bar = st.progress(0)
@@ -776,14 +939,14 @@ elif st.session_state.conversation_step == 6:
             status_text.empty()
             progress_bar.empty()
             
-            st.session_state.conversation_step = 7
+            st.session_state.conversation_step = 8
             st.rerun()
             
         except Exception as e:
             st.error(f"エラーが発生しました: {e}")
             st.session_state.generating = False
 
-elif st.session_state.conversation_step == 7:
+elif st.session_state.conversation_step == 8:
     st.subheader("🎉 生成結果")
     
     # Display evolution stages
@@ -840,7 +1003,8 @@ elif st.session_state.conversation_step == 7:
         # Reset all states
         for key in ['conversation_step', 'user_inputs', 'wikipedia_candidates', 
                    'selected_topic', 'selected_content', 'ap_history', 
-                   'descriptions', 'story', 'generating']:
+                   'descriptions', 'story', 'generating', 'improvement_suggestions',
+                   'improvement_directions']:
             if key in st.session_state:
                 del st.session_state[key]
         st.rerun()
@@ -863,9 +1027,10 @@ with st.sidebar:
         steps = [
             "興味の入力",
             "テーマ選択", 
-            "発展方向",
-            "未来ビジョン",
-            "個人シナリオ",
+            "現状評価",
+            "問題識別",
+            "改善提案選択",
+            "改善方向決定",
             "内容確認",
             "APモデル生成",
             "結果表示"
