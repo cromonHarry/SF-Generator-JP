@@ -478,7 +478,7 @@ def generate_suggestions(topic: str, reason: str) -> list[str]:
 def create_introduction_from_content(product: str, content: str) -> str:
     """Wikipedia内容から製品紹介を生成"""
     user_prompt = f"""
-これは{product}に関するwiki記事です、その内容をまとめて、{product}の紹介を出力してください。100字日本語以内。
+これは{product}に関する記事です、その内容をまとめて、{product}の紹介を出力してください。100字日本語以内。
 ###記事内容:
 {content}
 """
@@ -501,7 +501,7 @@ def analyze_content_with_gpt(product: str, content: str) -> dict:
 - 各AP射については、以下の形式でarrowsに追加してください：
 {{"source": "<起点対象>", "target": "<終点対象>", "type": "<射名>", "definition": "<記事内容から導き出される簡潔かつ文脈に即した説明>", "reference": "<その射を示す記事の引用文>"}}
 
-なお、[起点対象, 終点対象, 射]の組み合わせは、APモデルで定義された関係性に従っている必要があります。該当する内容が見つからない場合は、リストを空のまま返してください。
+なお、[起点対象, 終点対象, 射]の組み合わせは、APモデルで定義された関係性に従っている必要があります。できる限り内容を抽出してAPを構築です。該当する内容が見つからない場合は、リストを空のまま返してください。
 ###記事内容:
 {content}
 """
