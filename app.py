@@ -469,33 +469,6 @@ def create_introduction_from_content(product: str, content: str) -> str:
     )
     return response.choices[0].message.content
 
-def generate_improvement_suggestions(topic: str, problems: str) -> list:
-    """基于问题生成改进建议选项"""
-    user_prompt = f"""
-用户选择的主题是「{topic}」，他们认为当前存在的问题是：{problems}
-
-请根据这些问题，生成5个具体的改进建议选项。每个选项用一句话描述，要具体且可操作。
-
-以JSON格式输出：
-{{"suggestions": ["建议1的描述", "建议2的描述", "建议3的描述", "建议4的描述", "建议5的描述"]}}
-"""
-    
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.7
-    )
-    
-    try:
-        result = parse_json_response(response.choices[0].message.content)
-        return result["suggestions"]
-    except Exception as e:
-        # 如果解析失败，返回默认建议
-        return ["技術革新による効率化", "ユーザー体験の向上", "環境配慮の強化", "コスト削減", "アクセシビリティの改善"]
-
 def analyze_content_with_gpt(product: str, content: str) -> dict:
     """第1段階用：Wikipedia内容からAP要素を抽出"""
     user_prompt = f"""
@@ -526,6 +499,33 @@ def analyze_content_with_gpt(product: str, content: str) -> dict:
         return result["suggestions"]
     except Exception as e:
         return ["技術革新による効率化", "ユーザー体験の向上", "環境配慮の強化", "コスト削減", "アクセシビリティの改善"]
+    
+def generate_improvement_suggestions(topic: str, problems: str) -> list:
+    """基于问题生成改进建议选项"""
+    user_prompt = f"""
+ユーザーが選択したテーマは「{topic}」で、現在存在する問題は：{problems}
+
+これらの問題に基づいて、5つの具体的な改善提案オプションを生成してください。各オプションは一文で記述し、具体的で実行可能なものにしてください。
+
+以下のJSON形式で出力してください：
+{{"suggestions": ["提案1の説明", "提案2の説明", "提案3の説明", "提案4の説明", "提案5の説明"]}}
+"""
+    
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.7
+    )
+    
+    try:
+        result = parse_json_response(response.choices[0].message.content)
+        return result["suggestions"]
+    except Exception as e:
+        # 如果解析失败，返回默认建议
+        return ["技術革新による効率化", "ユーザー体験の向上", "環境配慮の強化", "コスト削減", "アクセシビリティの改善"]
 
 def generate_improvement_directions(topic: str, selected_suggestions: list, custom_input: str = "") -> list:
     """根据选择的建议生成具体改进方向"""
@@ -533,17 +533,17 @@ def generate_improvement_directions(topic: str, selected_suggestions: list, cust
     custom_text = f"また、ユーザーからの追加意見：{custom_input}" if custom_input else ""
     
     user_prompt = f"""
-用户选择的主题是「{topic}」。
-用户选择的改进建议：{suggestions_text}
+ユーザーが選択したテーマは「{topic}」です。
+ユーザーが選択した改善提案：{suggestions_text}
 {custom_text}
 
-请基于这些选择的建议，生成3-4个具体的改进方向。每个方向要：
-1. 具体且可行
-2. 与用户选择的建议相关
-3. 面向未来发展
+これらの選択された提案に基づいて、3-4個の具体的な改善方向を生成してください。各方向は以下の条件を満たす必要があります：
+1. 具体的で実行可能
+2. ユーザーが選択した提案と関連性がある
+3. 未来の発展に向けたもの
 
-以JSON格式输出：
-{{"directions": ["方向1的具体描述", "方向2的具体描述", "方向3的具体描述", "方向4的具体描述"]}}
+以下のJSON形式で出力してください：
+{{"directions": ["方向1の具体的な説明", "方向2の具体的な説明", "方向3の具体的な説明", "方向4の具体的な説明"]}}
 """
     
     response = client.chat.completions.create(
@@ -972,7 +972,7 @@ elif st.session_state.conversation_step == 8:
         st.markdown(st.session_state.story)
     
     # Action buttons
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         if st.button("🔎 APモデルを可視化", type="primary"):
@@ -980,7 +980,7 @@ elif st.session_state.conversation_step == 8:
             st.rerun()
     
     with col2:
-        # Download options
+        # Download AP model JSON
         ap_json = json.dumps(st.session_state.ap_history, ensure_ascii=False, indent=2)
         st.download_button(
             label="📥 APモデルJSONをダウンロード",
@@ -990,11 +990,29 @@ elif st.session_state.conversation_step == 8:
         )
     
     with col3:
+        # Download SF story
         st.download_button(
             label="📥 SF小説をダウンロード",
             data=st.session_state.story,
             file_name="sf_story.txt",
             mime="text/plain"
+        )
+    
+    with col4:
+        # Download user interaction data
+        user_data = {
+            "selected_topic": st.session_state.selected_topic,
+            "user_inputs": st.session_state.user_inputs,
+            "improvement_suggestions": st.session_state.improvement_suggestions,
+            "improvement_directions": st.session_state.improvement_directions,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        user_json = json.dumps(user_data, ensure_ascii=False, indent=2)
+        st.download_button(
+            label="📤 ユーザー入力データをダウンロード",
+            data=user_json,
+            file_name="user_interaction_data.json",
+            mime="application/json"
         )
     
     # Reset button
