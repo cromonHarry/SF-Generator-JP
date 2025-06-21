@@ -446,11 +446,11 @@ def search_wikipedia_candidates(keyword: str, max_results: int = 5):
                     "summary": summary,
                     "content": page.content
                 })
-            except Exception:
+            except Exception as e:
                 continue
         
         return candidates
-    except Exception:
+    except Exception as e:
         return []
 
 def generate_suggestions(topic: str, reason: str) -> list[str]:
@@ -544,7 +544,6 @@ Sカーブに基づき、第{stage}段階における新しい対象「技術や
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": temp}
         ],
-        temperature=0
     )
     
     try:
@@ -582,7 +581,6 @@ def update_ap_model(product: str, ap_model: list[dict], description: list[str], 
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=0
     )
     
     try:
