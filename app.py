@@ -668,7 +668,6 @@ st.markdown("APモデルに基づいて3段階の進化タイムラインとSF�
 
 # Multi-step conversation interface
 if st.session_state.conversation_step == 0:
-    st.subheader("ステップ1: 興味のある事柄")
     st.markdown("あなたの興味のある事柄についてAPモデルを構築し、SF短編小説を生成します。")
     
     interest = st.text_input("どのようなことに興味がありますか？", 
@@ -685,7 +684,6 @@ if st.session_state.conversation_step == 0:
         st.rerun()
 
 elif st.session_state.conversation_step == 1:
-    st.subheader("ステップ2: テーマの選択")
     st.markdown(f"「{st.session_state.user_inputs['interest']}」に関する検索結果から選択してください。")
     
     if st.session_state.wikipedia_candidates:
@@ -704,7 +702,6 @@ elif st.session_state.conversation_step == 1:
             st.rerun()
 
 elif st.session_state.conversation_step == 2:
-    st.subheader("ステップ2: 現状評価")
     st.markdown(f"「{st.session_state.selected_topic}」について、現在の発展状況をどう評価しますか？")
     
     # 评分滑块
@@ -733,7 +730,6 @@ elif st.session_state.conversation_step == 2:
         st.rerun()
 
 elif st.session_state.conversation_step == 3:
-    st.subheader("ステップ3: 問題の識別")
     rating = st.session_state.user_inputs['rating']
     
     if rating < 10:
@@ -768,7 +764,6 @@ elif st.session_state.conversation_step == 3:
             st.rerun()
 
 elif st.session_state.conversation_step == 4:
-    st.subheader("ステップ4: 改善提案の選択")
     st.markdown("生成された改善提案から興味のあるものを選択してください（複数選択可）")
     
     # 显示生成的建议选项
@@ -805,7 +800,6 @@ elif st.session_state.conversation_step == 4:
         st.rerun()
 
 elif st.session_state.conversation_step == 5:
-    st.subheader("ステップ5: 改善方向の決定")
     st.markdown("以下の改善方向から最も興味のあるもの**1-2個**を選択してください")
     
     selected_directions = []
