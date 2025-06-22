@@ -6,8 +6,7 @@ import json
 import re
 import time
 from openai import OpenAI
-import wikipedia
-import requests
+from tavily import TavilyClient # wikipediaとrequestsの代わりにtavilyを追加
 
 # ========== Multi-page setup ==========
 if 'page' not in st.session_state:
@@ -359,7 +358,10 @@ if st.session_state.page == "visualization":
     st.stop()
 
 # ========== Main Page ==========
+# Client Initialization
 client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+tavily_client = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+
 
 # System prompt in Japanese
 SYSTEM_PROMPT = """君はサイエンスフィクションの専門家であり、「アーキオロジカル・プロトタイピング（Archaeological Prototyping, 以下AP）」モデルに基づいて社会を分析します。以下はこのモデルの紹介です。
@@ -394,17 +396,39 @@ APは、18の項目(6個の対象と12個射)によって構成される社会�
 ##第3段階：成熟期: この段階では、技術の発展は再び緩やかになります。前期で発生した問題を解決しつつ、テクノロジーはより安定的で成熟した状態へと進化していきます。
 """
 
+# APモデルの基本構造（Tavilyベース構築用）
+AP_MODEL_STRUCTURE = {
+    "対象": {
+        "前衛的社会問題": "技術や資源のパラダイムによって引き起こされる社会問題",
+        "人々の価値観": "先進的な人々が認識する価値観や理想",
+        "社会問題": "社会で認識され解決すべき問題", 
+        "技術や資源": "問題解決のために組織化された技術や資源",
+        "日常の空間とユーザー体験": "製品・サービスによる物理空間とユーザー体験",
+        "制度": "習慣やビジネスを円滑にする制度や規則"
+    },
+    "射": {
+        "メディア": {"from": "制度", "to": "社会問題", "説明": "制度の欠陥を暴露するメディア"},
+        "コミュニティ化": {"from": "前衛的社会問題", "to": "社会問題", "説明": "前衛的問題に取り組むコミュニティ"},
+        "文化芸術振興": {"from": "前衛的社会問題", "to": "人々の価値観", "説明": "アートを通した問題の展示・伝達"},
+        "標準化": {"from": "制度", "to": "技術や資源", "説明": "制度の標準化による技術・資源化"},
+        "コミュニケーション": {"from": "社会問題", "to": "人々の価値観", "説明": "SNS等による問題の伝達"},
+        "組織化": {"from": "社会問題", "to": "技術や資源", "説明": "問題解決のための組織形成"},
+        "意味付け": {"from": "人々の価値観", "to": "日常の空間とユーザー体験", "説明": "価値観に基づく製品・サービスの使用理由"},
+        "製品・サービス": {"from": "技術や資源", "to": "日常の空間とユーザー体験", "説明": "技術を活用した製品・サービス創造"},
+        "習慣化": {"from": "人々の価値観", "to": "制度", "説明": "価値観に基づく習慣の制度化"},
+        "パラダイム": {"from": "技術や資源", "to": "前衛的社会問題", "説明": "支配的技術による新たな社会問題"},
+        "ビジネスエコシステム": {"from": "日常の空間とユーザー体験", "to": "制度", "説明": "ビジネス関係者のネットワーク"},
+        "アート(社会批評)": {"from": "日常の空間とユーザー体験", "to": "前衛的社会問題", "説明": "日常への違和感から問題を提示"}
+    }
+}
+
 # Initialize session state
 if 'conversation_step' not in st.session_state:
     st.session_state.conversation_step = 0
 if 'user_inputs' not in st.session_state:
     st.session_state.user_inputs = {}
-if 'wikipedia_candidates' not in st.session_state:
-    st.session_state.wikipedia_candidates = []
 if 'selected_topic' not in st.session_state:
     st.session_state.selected_topic = None
-if 'selected_content' not in st.session_state:
-    st.session_state.selected_content = None
 if 'generated_suggestions' not in st.session_state:
     st.session_state.generated_suggestions = []
 if 'ap_history' not in st.session_state:
@@ -429,30 +453,6 @@ def parse_json_response(gpt_output: str) -> dict:
     except Exception as e:
         raise e
 
-def search_wikipedia_candidates(keyword: str, max_results: int = 5):
-    """Wikipedia検索結果から候補を取得"""
-    wikipedia.set_lang("ja")
-    
-    try:
-        results = wikipedia.search(keyword, results=max_results)
-        candidates = []
-        
-        for result in results:
-            try:
-                page = wikipedia.page(result, auto_suggest=False)
-                summary = wikipedia.summary(result, sentences=1)
-                candidates.append({
-                    "title": result,
-                    "summary": summary,
-                    "content": page.content
-                })
-            except Exception as e:
-                continue
-        
-        return candidates
-    except Exception as e:
-        return []
-
 def generate_suggestions(topic: str, reason: str) -> list[str]:
     """LLMで改善案を生成"""
     user_prompt = f"""
@@ -475,46 +475,144 @@ def generate_suggestions(topic: str, reason: str) -> list[str]:
     except Exception:
         return ["AIによる提案の生成に失敗しました。手動で入力してください。"]
 
-def create_introduction_from_content(product: str, content: str) -> str:
-    """Wikipedia内容から製品紹介を生成"""
-    user_prompt = f"""
-これは{product}に関する記事です、その内容をまとめて、{product}の紹介を出力してください。100字日本語以内。
-###記事内容:
-{content}
+# --- New Tavily-based functions ---
+
+def generate_question_for_object(product: str, object_name: str, object_description: str) -> str:
+    """AP対象用の自然な質問文を生成"""
+    prompt = f"""
+{product}について、APモデルの対象「{object_name}」({object_description})に関する自然で完整な質問文を1つ生成してください。
+質問は以下の条件を満たしてください：
+- 完整な文として自然な日本語
+- {product}に関連する具体的内容を調べる質問
+- 検索エンジンで良い結果が得られそうな質問
+質問のみを出力してください：
 """
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content.strip()
 
-def analyze_content_with_gpt(product: str, content: str) -> dict:
-    """第1段階用：Wikipedia内容からAP要素を抽出"""
-    user_prompt = f"""
-これから、{product}を紹介する記事を提示します。あなたのタスクは、その内容からAPモデルで定義されている各対象および射に関連する記述や文を抽出することです。
-出力は、nodes(対象)とarrows(射)の2つのリストを持つJSON形式としてください。
-
-- 各AP対象については、以下の形式でnodesに追加してください：
-{{"type": "<<対象名>>", "definition": "<記事内容から導き出される簡潔かつ文脈に即した説明>", "reference": "<その対象を示す記事の引用文>"}}
-
-- 各AP射については、以下の形式でarrowsに追加してください：
-{{"source": "<起点対象>", "target": "<終点対象>", "type": "<射名>", "definition": "<記事内容から導き出される簡潔かつ文脈に即した説明>", "reference": "<その射を示す記事の引用文>"}}
-
-なお、[起点対象, 終点対象, 射]の組み合わせは、APモデルで定義された関係性に従っている必要があります。できる限り内容を抽出してAPを構築です。該当する内容が見つからない場合は、リストを空のまま返してください。
-###記事内容:
-{content}
+def generate_question_for_arrow(product: str, arrow_name: str, arrow_info: dict) -> str:
+    """AP射用の自然な質問文を生成"""
+    prompt = f"""
+{product}について、APモデルの射「{arrow_name}」に関する自然で完整な質問文を生成してください。
+射の詳細：
+- 起点：{arrow_info['from']}
+- 終点：{arrow_info['to']}
+- 説明：{arrow_info['説明']}
+質問は以下の条件を満たしてください：
+- 完整な文として自然な日本語
+- {arrow_info['from']}から{arrow_info['to']}への変換関係を具体的に調べる質問
+- {product}における具体的な事例や関係性を発見できる質問
+質問のみを出力してください：
 """
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
+    return response.choices[0].message.content.strip()
+
+def search_and_get_answer(question: str) -> str:
+    """Tavilyで質問し、答えを取得"""
+    try:
+        response = tavily_client.search(query=question, include_answer=True)
+        answer = response.get('answer', '')
+        if answer:
+            return answer
+        else:
+            results = response.get('results', [])
+            return results[0].get('content', "情報が見つかりませんでした") if results else "情報が見つかりませんでした"
+    except Exception as e:
+        return f"検索エラー: {str(e)}"
+
+def build_ap_element(product: str, element_type: str, element_name: str, answer: str) -> dict:
+    """回答からAP要素を構築"""
+    if element_type == "対象":
+        prompt = f"""
+{product}の{element_name}について、以下の情報からAP要素を構築してください：
+情報: {answer}
+以下のJSON形式で出力してください：
+{{
+  "type": "{element_name}",
+  "definition": "具体的で簡潔な定義（100文字以内）",
+  "reference": "情報源の要約（50文字以内）"
+}}
+"""
+    else:  # 射
+        arrow_info = AP_MODEL_STRUCTURE["射"][element_name]
+        prompt = f"""
+{product}の{element_name}（{arrow_info['from']} → {arrow_info['to']}）について、以下の情報からAP要素を構築してください：
+情報: {answer}
+以下のJSON形式で出力してください：
+{{
+  "source": "{arrow_info['from']}",
+  "target": "{arrow_info['to']}",
+  "type": "{element_name}",
+  "definition": "具体的な変換関係の説明（100文字以内）",
+  "reference": "情報源の要約（50文字以内）"
+}}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
+        )
+        return json.loads(response.choices[0].message.content.strip())
+    except Exception:
+        return None
+
+def build_stage1_ap_with_tavily(product: str, progress_bar):
+    """Tavilyを使って第1段階のAPモデルと紹介文を構築"""
+    ap_model = {"nodes": [], "arrows": []}
+    all_answers = []
     
-    return parse_json_response(response.choices[0].message.content)
+    total_elements = len(AP_MODEL_STRUCTURE["対象"]) + len(AP_MODEL_STRUCTURE["射"])
+    processed_elements = 0
+    base_progress = 0.1
+
+    # 対象 (Nodes)
+    for obj_name, obj_desc in AP_MODEL_STRUCTURE["対象"].items():
+        question = generate_question_for_object(product, obj_name, obj_desc)
+        answer = search_and_get_answer(question)
+        if answer and "検索エラー" not in answer:
+            all_answers.append(f"## {obj_name}\n{answer}")
+            element = build_ap_element(product, "対象", obj_name, answer)
+            if element: ap_model["nodes"].append(element)
+        processed_elements += 1
+        progress_bar.progress(base_progress + (0.3 * (processed_elements / total_elements)), text=f"第1段階：{obj_name}をWebで調査中...")
+        time.sleep(1) 
+
+    # 射 (Arrows)
+    for arrow_name, arrow_info in AP_MODEL_STRUCTURE["射"].items():
+        question = generate_question_for_arrow(product, arrow_name, arrow_info)
+        answer = search_and_get_answer(question)
+        if answer and "検索エラー" not in answer:
+            all_answers.append(f"## {arrow_name}\n{answer}")
+            element = build_ap_element(product, "射", arrow_name, answer)
+            if element: ap_model["arrows"].append(element)
+        processed_elements += 1
+        progress_bar.progress(base_progress + (0.3 * (processed_elements / total_elements)), text=f"第1段階：{arrow_name}をWebで調査中...")
+        time.sleep(1)
+
+    # 紹介文を生成
+    intro_prompt = f"""
+以下の{product}に関する様々な側面からの情報をもとに、{product}がどのようなものか、100字以内の日本語で簡潔に紹介文を作成してください。
+### 収集された情報:\n{''.join(all_answers)}
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": intro_prompt}],
+        temperature=0
+    )
+    introduction = response.choices[0].message.content
+
+    return introduction, ap_model
+
+# --- End of new functions ---
 
 def update_to_next_stage(product: str, ap_model: list[dict], description: list[str], imagination: str, stage: int):
     """次段階への更新内容を生成"""
@@ -544,6 +642,7 @@ Sカーブに基づき、第{stage}段階における新しい対象「技術や
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": temp}
         ],
+        response_format={"type": "json_object"}
     )
     
     try:
@@ -581,6 +680,7 @@ def update_ap_model(product: str, ap_model: list[dict], description: list[str], 
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt}
         ],
+        response_format={"type": "json_object"}
     )
     
     try:
@@ -629,30 +729,11 @@ if st.session_state.conversation_step == 0:
     
     if st.button("次へ進む", disabled=not interest):
         st.session_state.user_inputs['interest'] = interest
-        # Search Wikipedia
-        with st.spinner("Wikipediaで検索中..."):
-            candidates = search_wikipedia_candidates(interest)
-            st.session_state.wikipedia_candidates = candidates
-        st.session_state.conversation_step = 1
+        st.session_state.selected_topic = interest # トピックを直接設定
+        st.session_state.conversation_step = 2 # Wikipedia選択をスキップして評価へ
         st.rerun()
 
-elif st.session_state.conversation_step == 1:
-    st.markdown(f"「{st.session_state.user_inputs['interest']}」に関する検索結果から、分析したいテーマを1つ選択してください。")
-    
-    if st.session_state.wikipedia_candidates:
-        for i, candidate in enumerate(st.session_state.wikipedia_candidates):
-            with st.expander(f"{candidate['title']}", expanded=False):
-                st.markdown(f"**概要**: {candidate['summary']}")
-                if st.button(f"「{candidate['title']}」を選択", key=f"select_{i}"):
-                    st.session_state.selected_topic = candidate['title']
-                    st.session_state.selected_content = candidate['content']
-                    st.session_state.conversation_step = 2
-                    st.rerun()
-    else:
-        st.warning("検索結果が見つかりませんでした。他のキーワードで試してください。")
-        if st.button("戻る"):
-            st.session_state.conversation_step = 0
-            st.rerun()
+# Step 1 (Wikipedia selection) is now removed.
 
 elif st.session_state.conversation_step == 2:
     st.markdown(f"「{st.session_state.selected_topic}」の現在の発展状況について、あなたの評価を教えてください。")
@@ -730,7 +811,7 @@ elif st.session_state.conversation_step == 6:
     st.subheader("入力内容の確認")
     st.markdown("以下の内容でAPモデルとSF小説を構築します。よろしければ生成を開始してください。")
     
-    st.markdown(f"**選択したテーマ:**")
+    st.markdown(f"**分析するテーマ:**")
     st.info(st.session_state.selected_topic)
     
     st.markdown(f"**現状の評価:**")
@@ -754,8 +835,8 @@ elif st.session_state.conversation_step == 6:
         if st.button("最初からやり直し"):
             # Reset all states
             keys_to_reset = [
-                'conversation_step', 'user_inputs', 'wikipedia_candidates', 
-                'selected_topic', 'selected_content', 'ap_history', 
+                'conversation_step', 'user_inputs', 
+                'selected_topic', 'ap_history', 
                 'descriptions', 'story', 'generating', 'generated_suggestions'
             ]
             for key in keys_to_reset:
@@ -767,7 +848,6 @@ elif st.session_state.conversation_step == 7:
     if not st.session_state.generating:
         st.session_state.generating = True
         
-        # Create imagination string from new user inputs
         imagination = f"""
 【現状評価】: {st.session_state.user_inputs['score']}点
 【問題点】: {st.session_state.user_inputs['reason']}
@@ -775,43 +855,39 @@ elif st.session_state.conversation_step == 7:
 【未来構想】: {st.session_state.user_inputs['vision']}
 """
         
-        # Progress tracking
         progress_bar = st.progress(0, text="生成プロセスを開始します...")
-        
         ap_history = []
         descriptions = []
         
         try:
-            # Stage 1: Wikipedia-based analysis
-            progress_bar.progress(0.1, text="第1段階：現実に基づくAPモデルを構築中...")
-            introduction = create_introduction_from_content(st.session_state.selected_topic, st.session_state.selected_content)
+            # Stage 1: Tavily-based analysis
+            progress_bar.progress(0.1, text="第1段階：Web情報に基づくAPモデルを構築中...")
+            introduction, ap_model = build_stage1_ap_with_tavily(st.session_state.selected_topic, progress_bar)
             descriptions.append(introduction)
-            progress_bar.progress(0.2, text="第1段階：Wikipedia記事を分析中...")
-            ap_model = analyze_content_with_gpt(st.session_state.selected_topic, st.session_state.selected_content)
             ap_history.append({"stage": 1, "ap_model": ap_model})
             
             # Stage 2: Future evolution
-            progress_bar.progress(0.3, text="第2段階：未来展望（離陸期）のシナリオを生成中...")
+            progress_bar.progress(0.4, text="第2段階：未来展望（離陸期）のシナリオを生成中...")
             introduction2, tech_resources2, daily_experience2 = update_to_next_stage(
                 st.session_state.selected_topic, ap_history, descriptions, imagination, 2
             )
             descriptions.append(introduction2)
-            progress_bar.progress(0.45, text="第2段階：未来展望（離陸期）のAPモデルを構築中...")
+            progress_bar.progress(0.55, text="第2段階：未来展望（離陸期）のAPモデルを構築中...")
             ap_model2 = update_ap_model(st.session_state.selected_topic, ap_history, descriptions, tech_resources2, daily_experience2, 2)
             ap_history.append({"stage": 2, "ap_model": ap_model2})
             
             # Stage 3: Maturity stage
-            progress_bar.progress(0.6, text="第3段階：未来展望（成熟期）のシナリオを生成中...")
+            progress_bar.progress(0.7, text="第3段階：未来展望（成熟期）のシナリオを生成中...")
             introduction3, tech_resources3, daily_experience3 = update_to_next_stage(
                 st.session_state.selected_topic, ap_history, descriptions, imagination, 3
             )
             descriptions.append(introduction3)
-            progress_bar.progress(0.75, text="第3段階：未来展望（成熟期）のAPモデルを構築中...")
+            progress_bar.progress(0.85, text="第3段階：未来展望（成熟期）のAPモデルを構築中...")
             ap_model3 = update_ap_model(st.session_state.selected_topic, ap_history, descriptions, tech_resources3, daily_experience3, 3)
             ap_history.append({"stage": 3, "ap_model": ap_model3})
             
             # Generate story
-            progress_bar.progress(0.85, text="最終段階：SF短編小説を生成中...")
+            progress_bar.progress(0.9, text="最終段階：SF短編小説を生成中...")
             story = generate_story(st.session_state.selected_topic, ap_history, descriptions)
             
             # Store results
@@ -834,9 +910,7 @@ elif st.session_state.conversation_step == 7:
 elif st.session_state.conversation_step == 8:
     st.subheader("🎉 生成結果")
     
-    # Display evolution stages
     st.markdown("### 📈 進化段階")
-    
     stages = ["第1段階：揺籃期", "第2段階：離陸期", "第3段階：成熟期"]
     
     for i, stage_name in enumerate(stages):
@@ -851,12 +925,10 @@ elif st.session_state.conversation_step == 8:
                 st.markdown(f"- 対象数: {len(model.get('nodes', []))}/6")
                 st.markdown(f"- 射数: {len(model.get('arrows', []))}/12")
     
-    # Display story
     st.markdown("### 📚 生成されたSF短編小説")
     with st.expander("SF小説を表示", expanded=True):
         st.markdown(st.session_state.story)
     
-    # Action buttons
     st.markdown("---")
     st.subheader("アクション")
     col1, col2, col3 = st.columns(3)
@@ -875,7 +947,6 @@ elif st.session_state.conversation_step == 8:
         )
     
     with col3:
-        # Prepare user interaction data for download
         user_interaction_data = {
             "selected_topic": st.session_state.selected_topic,
             "inputs": {
@@ -893,12 +964,11 @@ elif st.session_state.conversation_step == 8:
             mime="application/json"
         )
 
-    # Reset button
     st.markdown("---")
     if st.button("🔄 新しい物語を生成"):
         keys_to_reset = [
-            'conversation_step', 'user_inputs', 'wikipedia_candidates', 
-            'selected_topic', 'selected_content', 'ap_history', 
+            'conversation_step', 'user_inputs',
+            'selected_topic', 'ap_history', 
             'descriptions', 'story', 'generating', 'generated_suggestions'
         ]
         for key in keys_to_reset:
@@ -921,9 +991,10 @@ with st.sidebar:
     if st.session_state.conversation_step > 0:
         st.markdown("---")
         st.markdown("**現在の進行状況:**")
+        
         steps = [
             "興味の入力",      # 0
-            "テーマ選択",      # 1
+            # "テーマ選択" is removed, but we keep numbering for logic simplicity
             "現状評価",        # 2
             "問題点入力",      # 3
             "改善案選択",      # 4
@@ -933,15 +1004,19 @@ with st.sidebar:
             "結果表示"         # 8
         ]
         
-        current_step_index = st.session_state.conversation_step
+        # A map to correctly associate step number with display text
+        step_map = {0: "興味の入力", 2: "現状評価", 3: "問題点入力", 4: "改善案選択", 5: "未来構想", 6: "内容確認", 7: "モデルと小説生成", 8: "結果表示"}
         
-        for i, step in enumerate(steps):
-            if i < current_step_index:
-                st.markdown(f"✅ {step}")
-            elif i == current_step_index:
-                st.markdown(f"➡️ **{step}**")
+        current_step = st.session_state.conversation_step
+
+        for step_num, step_name in step_map.items():
+            if step_num < current_step:
+                st.markdown(f"✅ {step_name}")
+            elif step_num == current_step:
+                st.markdown(f"➡️ **{step_name}**")
             else:
-                st.markdown(f"⭕ {step}")
+                st.markdown(f"⭕ {step_name}")
+
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("Made by Zhang Menghan using Streamlit")
