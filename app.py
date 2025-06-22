@@ -360,7 +360,7 @@ if st.session_state.page == "visualization":
 # ========== Main Page ==========
 # Client Initialization
 client = OpenAI(api_key=st.secrets["openai"]["api_key"])
-tavily_client = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+tavily_client = TavilyClient(api_key=st.secrets["tavily"]["api_key"])
 
 
 # System prompt in Japanese
