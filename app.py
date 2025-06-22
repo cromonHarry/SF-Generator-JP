@@ -794,7 +794,7 @@ elif st.session_state.conversation_step == 4:
         st.rerun()
 
 elif st.session_state.conversation_step == 5:
-    st.markdown("選択した改善案を踏まえ、「{st.session_state.selected_topic}」が未来にどのような姿になってほしいか、あなたの構想を具体的に記述してください。")
+    st.markdown("選択した改善案を踏まえ、未来にどのような姿になってほしいか、あなたの構想を具体的に記述してください。")
     
     vision = st.text_area(
         "未来の構想を教えてください。",
