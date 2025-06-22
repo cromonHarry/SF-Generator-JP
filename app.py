@@ -914,7 +914,7 @@ elif st.session_state.conversation_step == 8:
     stages = ["第1段階：揺籃期", "第2段階：離陸期", "第3段階：成熟期"]
     
     for i, stage_name in enumerate(stages):
-        with st.expander(stage_name, expanded=(i == 0)):
+        with st.expander(stage_name):
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**説明:**")
