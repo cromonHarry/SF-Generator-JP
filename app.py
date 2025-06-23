@@ -776,12 +776,18 @@ elif st.session_state.conversation_step == 4:
             )
             st.session_state.generated_suggestions = suggestions
 
+    # --- ここからが変更箇所 ---
+    st.markdown("**改善案を選択してください:**")
     options = st.session_state.generated_suggestions
-    selected_options = st.multiselect(
-        "改善案を選択してください:",
-        options=options,
-        default=[]
-    )
+    selected_options = [] # 選択された項目を格納する空のリストを準備
+
+    # enumerateを使い、各選択肢にユニークなキーを割り当てる
+    for i, suggestion in enumerate(options):
+        # 各提案に対してチェックボックスを作成
+        if st.checkbox(suggestion, key=f"suggestion_cb_{i}"):
+            # チェックされた場合、その提案をリストに追加
+            selected_options.append(suggestion)
+    # --- ここまでが変更箇所 ---
     
     custom_option = st.text_input("その他、独自の改善案があれば入力してください:")
 
