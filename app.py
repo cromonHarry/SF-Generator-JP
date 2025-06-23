@@ -688,7 +688,7 @@ def update_ap_model(product: str, ap_model: list[dict], description: list[str], 
     except Exception as e:
         return {"nodes": [], "arrows": []}
 
-def generate_story(product: str, ap_model: list[dict], description: list[str]) -> str:
+def generate_story(product: str, ap_model: list[dict], description: list[str], user_inputs: dict) -> str:
     """SF短編小説を生成"""
     user_prompt = f"""
 以下は{product}に関するAPモデルの情報です：
@@ -701,6 +701,12 @@ def generate_story(product: str, ap_model: list[dict], description: list[str]) -
 {description[i]}
 
 """
+    user_prompt += f"""
+##ユーザーの未来構想:
+{user_inputs['vision']}
+
+"""    
+    
     user_prompt += f"""
 それでは{product}をテーマとしてAPモデルの内容を基づき、近未来短編SF小説を生成してください。**重要**: 文字数は日本語1000字程度で。
 """
@@ -893,7 +899,7 @@ elif st.session_state.conversation_step == 7:
             
             # Generate story
             progress_bar.progress(0.9, text="最終段階：SF短編小説を生成中...")
-            story = generate_story(st.session_state.selected_topic, ap_history, descriptions)
+            story = generate_story(st.session_state.selected_topic, ap_history, descriptions, st.session_state.user_inputs)
             
             # Store results
             st.session_state.ap_history = ap_history
