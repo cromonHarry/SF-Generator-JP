@@ -457,7 +457,7 @@ def generate_suggestions(topic: str, reason: str) -> list[str]:
     """LLMで改善案を生成"""
     user_prompt = f"""
 テーマ「{topic}」について、ユーザーは現状に満足しておらず、その理由を「{reason}」と述べています。
-この状況を改善するための可能な発展方向を5つ、それぞれ10字以内で簡潔に生成してください。
+この状況を改善するための可能な発展方向を5つ、それぞれ一つの単語で簡潔に生成してください。
 出力は "suggestions" というキーを持つJSONオブジェクトにしてください。
 {{
     "suggestions": ["提案1", "提案2", "提案3", "提案4", "提案5"]
@@ -467,7 +467,6 @@ def generate_suggestions(topic: str, reason: str) -> list[str]:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": user_prompt}],
-            temperature=0.7,
             response_format={"type": "json_object"}
         )
         result = json.loads(response.choices[0].message.content)
