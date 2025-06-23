@@ -759,16 +759,16 @@ elif st.session_state.conversation_step == 3:
         key="reason_input"
     )
     
-    if st.button("改善案の生成に進む", disabled=not reason):
+    if st.button("改善方向の生成に進む", disabled=not reason):
         st.session_state.user_inputs['reason'] = reason
         st.session_state.conversation_step = 4
         st.rerun()
 
 elif st.session_state.conversation_step == 4:
-    st.markdown("ご指摘いただいた問題点に基づき、AIが以下の改善案を生成しました。未来の構想の参考にするものを選択してください。（複数選択可）")
+    st.markdown("ご指摘いただいた問題点に基づき、AIが以下の改善方向を生成しました。未来の構想の参考にするものを選択してください。（複数選択可）")
     
     if not st.session_state.generated_suggestions:
-        with st.spinner("AIが改善案を生成中..."):
+        with st.spinner("AIが改善方向を生成中..."):
             suggestions = generate_suggestions(
                 st.session_state.selected_topic,
                 st.session_state.user_inputs['reason']
@@ -776,7 +776,7 @@ elif st.session_state.conversation_step == 4:
             st.session_state.generated_suggestions = suggestions
 
     # --- ここからが変更箇所 ---
-    st.markdown("**改善案を選択してください:**")
+    st.markdown("**改善方向を選択してください:**")
     options = st.session_state.generated_suggestions
     selected_options = [] # 選択された項目を格納する空のリストを準備
 
@@ -788,7 +788,7 @@ elif st.session_state.conversation_step == 4:
             selected_options.append(suggestion)
     # --- ここまでが変更箇所 ---
     
-    custom_option = st.text_input("その他、独自の改善案があれば入力してください:")
+    custom_option = st.text_input("その他、独自の改善方向があれば入力してください:")
 
     if st.button("次へ進む", disabled=not (selected_options or custom_option)):
         final_suggestions = selected_options
@@ -799,7 +799,7 @@ elif st.session_state.conversation_step == 4:
         st.rerun()
 
 elif st.session_state.conversation_step == 5:
-    st.markdown("選択した改善案を踏まえ、未来にどのような姿になってほしいか、あなたの構想を具体的に記述してください。")
+    st.markdown("選択した改善方向を踏まえ、未来にどのような姿になってほしいか、あなたの構想を具体的に記述してください。")
     
     vision = st.text_area(
         "未来の構想を教えてください。",
@@ -825,7 +825,7 @@ elif st.session_state.conversation_step == 6:
     st.markdown(f"**問題点:**")
     st.info(st.session_state.user_inputs['reason'])
 
-    st.markdown(f"**選択した改善案:**")
+    st.markdown(f"**選択した改善方向:**")
     st.info("\n".join([f"- {s}" for s in st.session_state.user_inputs['selected_suggestions']]))
 
     st.markdown(f"**未来の構想:**")
@@ -856,7 +856,7 @@ elif st.session_state.conversation_step == 7:
         imagination = f"""
 【現状評価】: {st.session_state.user_inputs['score']}点
 【問題点】: {st.session_state.user_inputs['reason']}
-【選択された改善案】: {', '.join(st.session_state.user_inputs['selected_suggestions'])}
+【選択された改善方向】: {', '.join(st.session_state.user_inputs['selected_suggestions'])}
 【未来構想】: {st.session_state.user_inputs['vision']}
 """
         
@@ -1002,7 +1002,7 @@ with st.sidebar:
             # "テーマ選択" is removed, but we keep numbering for logic simplicity
             "現状評価",        # 2
             "問題点入力",      # 3
-            "改善案選択",      # 4
+            "改善方向選択",      # 4
             "未来構想",        # 5
             "内容確認",        # 6
             "モデルと小説生成",# 7
@@ -1010,7 +1010,7 @@ with st.sidebar:
         ]
         
         # A map to correctly associate step number with display text
-        step_map = {0: "興味の入力", 2: "現状評価", 3: "問題点入力", 4: "改善案選択", 5: "未来構想", 6: "内容確認", 7: "モデルと小説生成", 8: "結果表示"}
+        step_map = {0: "興味の入力", 2: "現状評価", 3: "問題点入力", 4: "改善方向選択", 5: "未来構想", 6: "内容確認", 7: "モデルと小説生成", 8: "結果表示"}
         
         current_step = st.session_state.conversation_step
 
