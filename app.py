@@ -22,6 +22,7 @@ if st.session_state.page == "visualization":
     # Check if AP model data exists
     if 'ap_history' in st.session_state and st.session_state.ap_history:
         # Create the HTML visualization
+        # --- ここからが変更後のコードブロックです ---
         html_content = '''
 <!DOCTYPE html>
 <html lang="ja">
@@ -38,7 +39,7 @@ if st.session_state.page == "visualization":
         }
         
         .container {
-            max-width: 95vw;
+            max-width: 95vw; /* 変更なし */
             margin: 0 auto;
             background: white;
             border-radius: 10px;
@@ -54,20 +55,20 @@ if st.session_state.page == "visualization":
         
         .visualization {
             position: relative;
-            width: 2200px;
-            height: 700px;
+            width: 1350px; /* 変更: 2200pxから縮小 */
+            height: 600px; /* 変更: 700pxから縮小 */
             background: #fafafa;
         }
         
         .node {
             position: absolute;
-            width: 140px;
-            height: 140px;
+            width: 110px;   /* 変更: 140pxから縮小 */
+            height: 110px;  /* 変更: 140pxから縮小 */
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 13px;
+            font-size: 12px;   /* 変更: 13pxから縮小 */
             font-weight: bold;
             text-align: center;
             cursor: pointer;
@@ -75,7 +76,7 @@ if st.session_state.page == "visualization":
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             border: 3px solid white;
             line-height: 1.2;
-            padding: 15px;
+            padding: 10px; /* 変更: 15pxから縮小 */
             box-sizing: border-box;
         }
         
@@ -174,27 +175,39 @@ if st.session_state.page == "visualization":
         const apModelData = ''' + json.dumps(st.session_state.ap_history, ensure_ascii=False) + ''';
 
         function getNodePosition(stageIndex, nodeType) {
-            const stageWidth = 700;
+            const stageWidth = 430; // 変更: 700から縮小
             const xOffset = stageIndex * stageWidth;
             
+            // Y座標も少し詰める
+            const yTop = 50;
+            const yMid = 250;
+            const yBottom = 450;
+            
+            // X座標を新しいStageWidthに合わせて再計算
+            const xLeft = 30;
+            const xMidLeft = 130;
+            const xCenter = 215;
+            const xMidRight = 300;
+            const xRight = 380;
+
             if (stageIndex % 2 === 0) { 
                 switch(nodeType) {
-                    case '制度':                      return { x: xOffset + 355, y: 50 };
-                    case '日常の空間とユーザー体験':  return { x: xOffset + 180, y: 270 };
-                    case '社会問題':                  return { x: xOffset + 530, y: 270 };
-                    case '技術や資源':              return { x: xOffset + 50,  y: 500 };
-                    case '前衛的社会問題':            return { x: xOffset + 355, y: 500 };
-                    case '人々の価値観':              return { x: xOffset + 660, y: 500 };
+                    case '制度':                      return { x: xOffset + xCenter, y: yTop };
+                    case '日常の空間とユーザー体験':  return { x: xOffset + xMidLeft, y: yMid };
+                    case '社会問題':                  return { x: xOffset + xMidRight, y: yMid };
+                    case '技術や資源':              return { x: xOffset + xLeft,  y: yBottom };
+                    case '前衛的社会問題':            return { x: xOffset + xCenter, y: yBottom };
+                    case '人々の価値観':              return { x: xOffset + xRight, y: yBottom };
                     default:                        return null;
                 }
             } else { 
                 switch(nodeType) {
-                    case '技術や資源':              return { x: xOffset + 50,  y: 50 };
-                    case '前衛的社会問題':            return { x: xOffset + 355, y: 50 };
-                    case '人々の価値観':              return { x: xOffset + 660, y: 50 };
-                    case '日常の空間とユーザー体験':  return { x: xOffset + 180, y: 270 };
-                    case '社会問題':                  return { x: xOffset + 530, y: 270 };
-                    case '制度':                      return { x: xOffset + 355, y: 500 };
+                    case '技術や資源':              return { x: xOffset + xLeft,  y: yTop };
+                    case '前衛的社会問題':            return { x: xOffset + xCenter, y: yTop };
+                    case '人々の価値観':              return { x: xOffset + xRight, y: yTop };
+                    case '日常の空間とユーザー体験':  return { x: xOffset + xMidLeft, y: yMid };
+                    case '社会問題':                  return { x: xOffset + xMidRight, y: yMid };
+                    case '制度':                      return { x: xOffset + xCenter, y: yBottom };
                     default:                        return null;
                 }
             }
@@ -265,7 +278,7 @@ if st.session_state.page == "visualization":
         }
 
         function createArrow(sourceNode, targetNode, arrowData, isDotted) {
-            const nodeRadius = 70;
+            const nodeRadius = 55; // 変更: 70から縮小 (新しいノードの直径110pxの半分)
             
             const startPos = { x: parseFloat(sourceNode.style.left), y: parseFloat(sourceNode.style.top) };
             const endPos = { x: parseFloat(targetNode.style.left), y: parseFloat(targetNode.style.top) };
@@ -323,9 +336,10 @@ if st.session_state.page == "visualization":
 </body>
 </html>
         '''
+        # --- ここまでが変更後のコードブロックです ---
         
         # Display the HTML content
-        st.components.v1.html(html_content, height=800, scrolling=True)
+        st.components.v1.html(html_content, height=650, scrolling=True) # 高さを少し調整
         
         # Download options
         st.subheader("ダウンロードオプション")
