@@ -684,7 +684,7 @@ def update_ap_model(product: str, ap_model: list[dict], description: list[str], 
 射: メディア、コミュニティ化、文化芸術振興、標準化、コミュニケーション、組織化、意味付け、製品・サービス、習慣化、パラダイム、ビジネスエコシステム、アート(社会批評)
 
 以下のJSON形式で出力してください：
-{{"nodes": [{{"type": "対象名", "definition": "この対象に関する説明"}}], "arrows": [{{"source": "起点対象", "target": "終点対象", "type": "射名", "definition": "この射に関する説明"}}]}}
+{{"nodes": [{{"type": "対象名", "definition": "この対象に関する説明", "example": "この対象に関する具体的な例"}}], "arrows": [{{"source": "起点対象", "target": "終点対象", "type": "射名", "definition": "この射に関する説明", "example": "この射に関する具体的な例"}}]}}
 """
     
     response = client.chat.completions.create(
