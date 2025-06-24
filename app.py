@@ -892,7 +892,7 @@ elif st.session_state.conversation_step == 7:
             ap_history.append({"stage": 1, "ap_model": ap_model})
             
             # Stage 2: Future evolution
-            progress_bar.progress(0.4, text="第2段階：未来展望（離陸期）のシナリオを生成中...")
+            progress_bar.progress(0.4, text="第2段階：未来展望（離陸期）の紹介を生成中...")
             introduction2, tech_resources2, daily_experience2 = update_to_next_stage(
                 st.session_state.selected_topic, ap_history, descriptions, imagination, 2
             )
@@ -902,7 +902,7 @@ elif st.session_state.conversation_step == 7:
             ap_history.append({"stage": 2, "ap_model": ap_model2})
             
             # Stage 3: Maturity stage
-            progress_bar.progress(0.7, text="第3段階：未来展望（成熟期）のシナリオを生成中...")
+            progress_bar.progress(0.7, text="第3段階：未来展望（成熟期）の紹介を生成中...")
             introduction3, tech_resources3, daily_experience3 = update_to_next_stage(
                 st.session_state.selected_topic, ap_history, descriptions, imagination, 3
             )
@@ -1008,9 +1008,9 @@ with st.sidebar:
     **アーキオロジカル・プロトタイピング（AP）モデル**は、社会文化を18の要素（6つの対象と12の射）で分析するモデルです。
     
     **Sカーブ進化モデル**:
-    - **第1段階（揺籃期）**: 既存問題の解決と改善
-    - **第2段階（離陸期）**: 急速な技術発展
-    - **第3段階（成熟期）**: 安定した成熟状態
+    - **第1段階（揺籃期）**: 現状
+    - **第2段階（離陸期）**: 未来の構想
+    - **第3段階（成熟期）**: その構想の改善
     """)
     
     if st.session_state.conversation_step > 0:
