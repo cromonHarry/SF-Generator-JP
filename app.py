@@ -149,34 +149,73 @@ def build_ap_element(product: str, element_type: str, element_name: str, answer:
         return json.loads(response.choices[0].message.content.strip())
     except Exception: return None
 
+def process_element(product: str, element_type: str, name: str, info: dict):
+    """1つのAPモデル要素を生成する独立した関数（スレッド内で実行される）"""
+    try:
+        # 1. 質問を生成
+        if element_type == "対象":
+            question = generate_question_for_object(product, name, info)
+        else: # 射
+            question = generate_question_for_arrow(product, name, info)
+
+        # 2. 検索を実行
+        answer = search_and_get_answer(question)
+        if "検索エラー" in answer or not answer:
+            return None, None # エラーまたは結果なし
+
+        # 3. AP要素を構築
+        element_data = build_ap_element(product, element_type, name, answer)
+        if not element_data:
+            return None, None # 構築失敗
+
+        return {"type": element_type, "name": name, "data": element_data}, f"## {name}\n{answer}"
+    except Exception as e:
+        st.warning(f"要素「{name}」の処理中にエラーが発生しました: {e}")
+        return None, None
+
 def build_stage1_ap_with_tavily(product: str, progress_bar):
     ap_model = {"nodes": [], "arrows": []}
     all_answers = []
-    total_elements = len(AP_MODEL_STRUCTURE["対象"]) + len(AP_MODEL_STRUCTURE["射"])
     
-    with st.status("第1段階：TavilyによるWeb情報収集とAPモデル構築中...", expanded=True) as status:
-        for i, (obj_name, obj_desc) in enumerate(AP_MODEL_STRUCTURE["対象"].items()):
-            st.write(f"  - 対象「{obj_name}」を調査中...")
-            question = generate_question_for_object(product, obj_name, obj_desc)
-            answer = search_and_get_answer(question)
-            if answer and "検索エラー" not in answer:
-                all_answers.append(f"## {obj_name}\n{answer}")
-                element = build_ap_element(product, "対象", obj_name, answer)
-                if element: ap_model["nodes"].append(element)
-            progress_bar.progress((i + 1) / total_elements * 0.3) # Stage 1 is 30% of total
-            time.sleep(1)
+    # ★★★ スレッド数を5に設定 ★★★
+    MAX_WORKERS = 5
 
-        for i, (arrow_name, arrow_info) in enumerate(AP_MODEL_STRUCTURE["射"].items()):
-            st.write(f"  - 射「{arrow_name}」を調査中...")
-            question = generate_question_for_arrow(product, arrow_name, arrow_info)
-            answer = search_and_get_answer(question)
-            if answer and "検索エラー" not in answer:
-                all_answers.append(f"## {arrow_name}\n{answer}")
-                element = build_ap_element(product, "射", arrow_name, answer)
-                if element: ap_model["arrows"].append(element)
-            progress_bar.progress((len(AP_MODEL_STRUCTURE["対象"]) + i + 1) / total_elements * 0.3)
-            time.sleep(1)
-        
+    tasks = []
+    # 「対象」のタスクリストを作成
+    for name, desc in AP_MODEL_STRUCTURE["対象"].items():
+        tasks.append((product, "対象", name, desc))
+    # 「射」のタスクリストを作成
+    for name, info in AP_MODEL_STRUCTURE["射"].items():
+        tasks.append((product, "射", name, info))
+    
+    total_elements = len(tasks)
+    completed_count = 0
+
+    with st.status("第1段階：TavilyによるWeb情報収集とAPモデル構築中...", expanded=True) as status:
+        # ThreadPoolExecutorを使って並列処理
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # タスクを投入し、futureオブジェクトを受け取る
+            future_to_task = {executor.submit(process_element, *task): task for task in tasks}
+            
+            for future in concurrent.futures.as_completed(future_to_task):
+                task_name = future_to_task[future][2]
+                status.write(f"  - 要素「{task_name}」を並列処理中...")
+                
+                result, answer_text = future.result()
+                
+                if result:
+                    if result["type"] == "対象":
+                        ap_model["nodes"].append(result["data"])
+                    else: # 射
+                        ap_model["arrows"].append(result["data"])
+                
+                if answer_text:
+                    all_answers.append(answer_text)
+
+                # プログレスバーを更新
+                completed_count += 1
+                progress_bar.progress( (completed_count / total_elements) * 0.3 )
+
         status.update(label="第1段階：紹介文を生成中...", state="running")
         intro_prompt = f"以下の{product}に関する様々な側面からの情報をもとに、{product}がどのようなものか、100字以内の日本語で簡潔に紹介文を作成してください。\n### 収集された情報:\n{''.join(all_answers)}"
         response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": intro_prompt}], temperature=0)
@@ -334,7 +373,7 @@ def generate_stage_introduction(topic: str, stage: int, new_elements: dict, user
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0)
     return response.choices[0].message.content.strip()
 
-# ========== Story Generation Functions (NEW) ==========
+# ========== Story Generation Functions ==========
 def generate_outline(theme: str, scene: str, ap_model_history: list) -> str:
     prompt = f"""
 あなたはプロのSF作家です。以下の情報に基づき、「{theme}」をテーマにした短編SF小説のあらすじを作成してください。
@@ -522,13 +561,11 @@ if st.session_state.generation_complete:
                 del st.session_state[key]
         st.rerun()
 
-# --- Visualization Expander (旧版兼容) ---
+# --- Visualization Expander ---
 if st.session_state.show_vis:
     with st.expander("🔬 APモデル可視化（クリックで閉じる）", expanded=True):
         
-        # Check if AP model data exists
         if 'ap_history' in st.session_state and st.session_state.ap_history:
-            # Create the HTML visualization
             html_content = f'''
 <!DOCTYPE html>
 <html lang="ja">
@@ -538,7 +575,6 @@ if st.session_state.show_vis:
     <title>APモデル可視化</title>
     <style>
         body {{ font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }}
-        .container {{ max-width: 95vw; margin: 0 auto; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
         .vis-wrapper {{ overflow-x: auto; border: 1px solid #ddd; border-radius: 10px; }}
         .visualization {{ position: relative; width: 2200px; height: 700px; background: #fafafa; }}
         .node {{ position: absolute; width: 140px; height: 140px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; text-align: center; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 3px solid white; line-height: 1.2; padding: 15px; box-sizing: border-box; }}
@@ -625,17 +661,13 @@ if st.session_state.show_vis:
                 const nextStage = apModelData[stageIndex + 1];
 
                 stageData.ap_model.arrows.forEach(arrowData => {{
-                    // ==========================================================
-                    // === 最终修正：如果这是最后一个阶段，则隐藏特定的演进箭头 ===
-                    // ==========================================================
                     const isLastStage = !nextStage;
                     const arrowType = arrowData.type;
                     const typesToHideInLastStage = ['標準化', '組織化', '意味付け', '習慣化'];
 
                     if (isLastStage && typesToHideInLastStage.includes(arrowType)) {{
-                        return; // 跳过，不绘制此箭头
+                        return;
                     }}
-                    // ==========================================================
                     
                     let sourceNode = allNodes[`s${{stageData.stage}}-${{arrowData.source}}`];
                     let targetNode;
@@ -715,10 +747,8 @@ if st.session_state.show_vis:
 </body>
 </html>
 '''
-            # Display the HTML content
             st.components.v1.html(html_content, height=800, scrolling=True)
             
-            # Add a button to "close" the expander
             if st.button("閉じる"):
                 st.session_state.show_vis = False
                 st.rerun()
