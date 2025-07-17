@@ -529,6 +529,7 @@ if st.session_state.show_vis:
         const tooltip = document.getElementById('tooltip');
         let allNodes = {{}};
         const apModelData = {json.dumps(st.session_state.ap_history, ensure_ascii=False)};
+
         function getNodePosition(stageIndex, nodeType) {{
             const stageWidth = 700;
             const xOffset = stageIndex * stageWidth;
@@ -554,9 +555,16 @@ if st.session_state.show_vis:
                 }}
             }}
         }}
+
+        // ******************************************************
+        // ** 以下、オリジナルのロジックに修正したJavaScript関数 **
+        // ******************************************************
+
         function renderAllStages() {{
             visualization.innerHTML = '';
             allNodes = {{}}; 
+
+            // 1. 全てのノードを先に描画
             apModelData.forEach((stageData, stageIndex) => {{
                 if (!stageData.ap_model || !stageData.ap_model.nodes) return;
                 stageData.ap_model.nodes.forEach(nodeData => {{
@@ -567,8 +575,11 @@ if st.session_state.show_vis:
                     node.style.left = position.x + 'px';
                     node.style.top = position.y + 'px';
                     node.textContent = nodeData.type;
+                    
+                    // 「例」があればツールチップに追加
                     const definition = nodeData.definition + (nodeData.example ? `\\n\\n[例] ` + nodeData.example : "");
                     node.dataset.definition = definition.replace(/\\n/g, '<br>');
+                    
                     node.dataset.id = `s${{stageData.stage}}-${{nodeData.type}}`;
                     node.addEventListener('mouseenter', showTooltip);
                     node.addEventListener('mouseleave', hideTooltip);
@@ -576,11 +587,37 @@ if st.session_state.show_vis:
                     allNodes[node.dataset.id] = node;
                 }});
             }});
+
+            // 2. 全ての矢印を描画（ステージ間を含む）
             apModelData.forEach((stageData, stageIndex) => {{
                 if (!stageData.ap_model || !stageData.ap_model.arrows) return;
+                
+                const nextStage = apModelData[stageIndex + 1];
+
                 stageData.ap_model.arrows.forEach(arrowData => {{
                     let sourceNode = allNodes[`s${{stageData.stage}}-${{arrowData.source}}`];
-                    let targetNode = allNodes[`s${{stageData.stage}}-${{arrowData.target}}`];
+                    let targetNode;
+                    let isInterStage = false;
+                    const arrowType = arrowData.type;
+
+                    // *** ここからが修正された核心ロジック：ステージ間の矢印を定義 ***
+                    if (nextStage && (arrowType === '組織化' || arrowType === '標準化')) {{
+                        targetNode = allNodes[`s${{nextStage.stage}}-技術や資源`];
+                        isInterStage = !!targetNode;
+                    }} else if (nextStage && arrowType === '意味付け') {{
+                        targetNode = allNodes[`s${{nextStage.stage}}-日常の空間とユーザー体験`];
+                        isInterStage = !!targetNode;
+                    }} else if (nextStage && arrowType === '習慣化') {{
+                        targetNode = allNodes[`s${{nextStage.stage}}-制度`];
+                        isInterStage = !!targetNode;
+                    }}
+                    // *** 修正核心ロジックここまで ***
+
+                    if (!isInterStage) {{
+                        // ステージ内矢印の場合
+                        targetNode = allNodes[`s${{stageData.stage}}-${{arrowData.target}}`];
+                    }}
+
                     if (sourceNode && targetNode) {{
                         const isDotted = arrowData.type === 'アート（社会批評）' || arrowData.type === 'アート(社会批評)' || arrowData.type === 'メディア';
                         createArrow(sourceNode, targetNode, arrowData, isDotted);
@@ -588,6 +625,7 @@ if st.session_state.show_vis:
                 }});
             }});
         }}
+
         function createArrow(sourceNode, targetNode, arrowData, isDotted) {{
             const nodeRadius = 70;
             const startPos = {{ x: parseFloat(sourceNode.style.left), y: parseFloat(sourceNode.style.top) }};
@@ -612,13 +650,17 @@ if st.session_state.show_vis:
             const labelY = adjustedStartY + (dy / distance) * (adjustedDistance / 2);
             label.style.left = labelX + 'px';
             label.style.top = labelY + 'px';
+            
+            // 「例」があればツールチップに追加
             const definition = arrowData.definition + (arrowData.example ? `\\n\\n[例] ` + arrowData.example : "");
             label.dataset.definition = definition.replace(/\\n/g, '<br>');
+
             label.addEventListener('mouseenter', showTooltip);
             label.addEventListener('mouseleave', hideTooltip);
             visualization.appendChild(arrow);
             visualization.appendChild(label);
         }}
+
         function showTooltip(event) {{
             const definition = event.target.dataset.definition;
             if (definition) {{
@@ -628,14 +670,17 @@ if st.session_state.show_vis:
                 tooltip.classList.add('show');
             }}
         }}
+
         function hideTooltip() {{
             tooltip.classList.remove('show');
         }}
+
+        // 描画開始
         renderAllStages();
     </script>
 </body>
 </html>
-            '''
+'''
             # Display the HTML content
             st.components.v1.html(html_content, height=800, scrolling=True)
             
