@@ -403,7 +403,7 @@ def show_agent_proposals(element_result):
     st.info(f"{final_decision['final_selected_content']}")
 
 # ========== Main UI & State Management (変更箇所) ==========
-st.title("🚀 近未来SF生成器 (自動実行版)")
+st.title("🚀 近未来SF生成器")
 
 # --- Session Stateの初期化 ---
 if 'process_started' not in st.session_state:
