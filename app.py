@@ -178,7 +178,7 @@ def build_stage1_ap_with_tavily(product: str, progress_bar):
     all_answers = []
     
     # ★★★ スレッド数を5に設定 ★★★
-    MAX_WORKERS = 5
+    MAX_WORKERS = 8
 
     tasks = []
     # 「対象」のタスクリストを作成
