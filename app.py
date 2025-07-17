@@ -370,30 +370,37 @@ def show_visualization(ap_history, height=750):
     st.components.v1.html(html_content, height=height, scrolling=True)
 
 def show_agent_proposals(element_result):
-    """マルチエージェントの提案結果をきれいに表示する"""
+    """
+    マルチエージェントの提案結果をきれいに表示する (ネストエラー修正版)
+    """
     st.markdown(f"#### 🧠 中核要素「{element_result['element_type']}」の生成プロセス")
+    
+    # st.expander のネストを避けるため、反復ごとの expander を削除し、
+    # 代わりに markdown のヘッダーと区切り線を使用します。
     for iteration in element_result['iterations']:
-        with st.expander(f"反復 {iteration['iteration_number']}/3", expanded=iteration['iteration_number']==1):
-            st.markdown("##### 🤖 各エージェントの提案")
-            cols = st.columns(len(iteration['all_agent_proposals']))
-            for i, proposal in enumerate(iteration['all_agent_proposals']):
-                with cols[i]:
-                    st.markdown(f"**{proposal['agent_name']}**")
-                    st.info(proposal['proposal'])
-            
-            st.markdown("---")
-            st.markdown("##### 🎯 判定結果")
-            judgment = iteration['judgment']
-            st.success(f"**選ばれた提案:** {judgment['selected_proposal']}")
-            st.write(f"**選ばれた内容:** {judgment['selected_content']}")
-            st.write(f"**選定理由:** {judgment['selection_reason']}")
+        # --- ここからが変更点 ---
+        st.markdown(f"---")
+        st.markdown(f"##### 反復 {iteration['iteration_number']}/3")
+        
+        st.markdown("###### 🤖 各エージェントの提案")
+        cols = st.columns(len(iteration['all_agent_proposals']))
+        for i, proposal in enumerate(iteration['all_agent_proposals']):
+            with cols[i]:
+                st.markdown(f"**{proposal['agent_name']}**")
+                st.info(proposal['proposal'])
+        
+        st.markdown("###### 🎯 判定結果")
+        judgment = iteration['judgment']
+        st.success(f"**選ばれた提案:** {judgment['selected_proposal']}")
+        st.write(f"**選ばれた内容:** {judgment['selected_content']}")
+        st.write(f"**選定理由:** {judgment['selection_reason']}")
+        # --- ここまでが変更点 ---
     
     st.markdown("---")
     st.markdown("##### 🏆 最終決定")
     final_decision = element_result['final_decision']
     st.success(f"**最終的に選択された内容 (反復 {final_decision['final_selected_iteration']} の結果):**")
     st.info(f"{final_decision['final_selected_content']}")
-    st.write(f"**最終選定理由:** {final_decision['final_selection_reason']}")
 
 # ========== Main UI & State Management (変更箇所) ==========
 st.title("🚀 近未来SF生成器 (自動実行版)")
