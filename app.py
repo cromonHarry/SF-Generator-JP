@@ -181,7 +181,7 @@ def build_stage1_ap_with_tavily(product: str, status_container):
         future_to_task = {executor.submit(process_element, *task): task for task in tasks}
         for future in concurrent.futures.as_completed(future_to_task):
             task_name = future_to_task[future][2]
-            status_container.write(f"  - 要素「{task_name}」を並列処理中...")
+            status_container.write(f"  - 要素「{task_name}」を検索中...")
             result, answer_text = future.result()
             if result:
                 if result["type"] == "対象": ap_model["nodes"].append(result["data"])
@@ -221,7 +221,7 @@ def agent_generate_element(agent: dict, topic: str, element_type: str, previous_
 {context_info}
 {history_info}
 **重要**: 過去の提案と重複しないよう、新しい角度からの提案を行ってください。同じ内容や似たような提案は避け、あなたの専門性を活かした全く新しいアプローチを提示してください。
-あなたの専門性と視点から、次段階における「{element_type}」の内容を創造的で革新的に生成してください。Sカーブ理論に基づき、前段階からの発展と新たな可能性を考慮し、あなたならではの独創的なアイデアを**提案内容のテキストのみで、200字以内で回答してください。JSON形式や余計な説明は不要です。**
+あなたの専門性と視点から、次段階における「{element_type}」の内容を創造的で革新的に生成してください。Sカーブ理論に基づき、前段階からの発展と新たな可能性を考慮し、あなたならではの独創的で素晴らしい想像力があるアイデアを**提案内容のテキストのみで、200字以内で回答してください。JSON形式や余計な説明は不要です。**
 """
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
     return response.choices[0].message.content.strip()
@@ -256,7 +256,7 @@ def generate_single_element_with_iterations(status_container, topic: str, elemen
     iteration_results = []
     agent_history = {agent['name']: [] for agent in agents}
     for iteration in range(1, 4):
-        status_container.write(f"    - 反復 {iteration}/3: {len(agents)}人のエージェントが提案を同時生成中...")
+        status_container.write(f"    - 反復 {iteration}/3: {len(agents)}人のエージェントが提案を生成中...")
         proposals = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(agents)) as executor:
             future_to_agent = {executor.submit(agent_generate_element, agent, topic, element_type, previous_stage_ap, user_vision, context, agent_history[agent['name']]): agent for agent in agents}
@@ -418,12 +418,12 @@ if 'process_started' not in st.session_state:
 
 # --- STEP 0: 初期入力画面 ---
 if not st.session_state.process_started:
-    st.markdown("探求したい**テーマ**と物語の**シーン**を入力してください。AIが3段階の未来を予測し、SF小説を最後まで自動で生成します。")
+    st.markdown("探求したい**テーマ**と物語の**舞台**を入力してください。AIが3段階の未来を予測し、SF小説を最後まで自動で生成します。")
     
-    topic_input = st.text_input("分析したいテーマを入力してください", placeholder="例：八ツ橋、自動運転、量子コンピュータ")
-    scene_input = st.text_area("物語の舞台となるシーンを具体的に記述してください", placeholder="例：夕暮れ時の京都、八ツ橋を売る古民家カフェ")
+    topic_input = st.text_input("探求したいテーマを入力してください", placeholder="例：八ツ橋、自動運転、量子コンピュータ")
+    scene_input = st.text_area("物語の舞台を具体的に記述してください", placeholder="例：夕暮れ時の京都、八ツ橋を売るお店")
 
-    if st.button("分析と物語生成を自動で開始 →", type="primary", disabled=not topic_input or not scene_input):
+    if st.button("APと物語生成開始 →", type="primary", disabled=not topic_input or not scene_input):
         st.session_state.topic = topic_input
         st.session_state.scene = scene_input
         st.session_state.process_started = True
@@ -432,7 +432,7 @@ if not st.session_state.process_started:
 # --- 全自動実行プロセス ---
 else:
     st.header(f"テーマ: {st.session_state.topic}")
-    user_vision = f"「{st.session_state.topic}」が技術の進化を通じて、より多くの人々に利益をもたらし、持続可能な形で社会に貢献することを期待します。"
+    user_vision = f"「{st.session_state.topic}」が技術の進化を通じて、未来の発展を想像する。"
 
     # ==================================================================
     # 表示エリア： 常に存在するデータを表示する
@@ -515,7 +515,7 @@ else:
         element_sequence = ["技術や資源", "日常の空間とユーザー体験", "前衛的社会問題"]
         if len(s2_results) < len(element_sequence):
             elem_type = element_sequence[len(s2_results)]
-            with st.status(f"第2段階 中核要素「{elem_type}」を生成中...", expanded=True) as status:
+            with st.status(f"第2段階 「{elem_type}」を生成中...", expanded=True) as status:
                 # 前の要素の結果をコンテキストとして渡す
                 context = {r['element_type']: r['final_decision']['final_selected_content'] for r in s2_results}
                 result = generate_single_element_with_iterations(status, st.session_state.topic, elem_type, st.session_state.ap_history[0]['ap_model'], st.session_state.agents, user_vision, context)
@@ -540,7 +540,7 @@ else:
         element_sequence = ["技術や資源", "日常の空間とユーザー体験", "前衛的社会問題"]
         if len(s3_results) < len(element_sequence):
             elem_type = element_sequence[len(s3_results)]
-            with st.status(f"第3段階 中核要素「{elem_type}」を生成中...", expanded=True) as status:
+            with st.status(f"第3段階 「{elem_type}」を生成中...", expanded=True) as status:
                 context = {r['element_type']: r['final_decision']['final_selected_content'] for r in s3_results}
                 result = generate_single_element_with_iterations(status, st.session_state.topic, elem_type, st.session_state.ap_history[1]['ap_model'], st.session_state.agents, user_vision, context)
                 s3_results.append(result)
