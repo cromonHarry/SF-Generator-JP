@@ -483,10 +483,9 @@ if st.session_state.generation_complete:
                 del st.session_state[key]
         st.rerun()
 
-# --- Visualization Dialog ---
+# --- Visualization Expander (旧版兼容) ---
 if st.session_state.show_vis:
-    with st.dialog("APモデル可視化", width="large"):
-        st.info("ダイアログの外側をクリックすると閉じます。")
+    with st.expander("🔬 APモデル可視化（クリックで閉じる）", expanded=True):
         
         # Check if AP model data exists
         if 'ap_history' in st.session_state and st.session_state.ap_history:
@@ -559,6 +558,7 @@ if st.session_state.show_vis:
             visualization.innerHTML = '';
             allNodes = {{}}; 
             apModelData.forEach((stageData, stageIndex) => {{
+                if (!stageData.ap_model || !stageData.ap_model.nodes) return;
                 stageData.ap_model.nodes.forEach(nodeData => {{
                     const position = getNodePosition(stageIndex, nodeData.type);
                     if (!position) return;
@@ -577,6 +577,7 @@ if st.session_state.show_vis:
                 }});
             }});
             apModelData.forEach((stageData, stageIndex) => {{
+                if (!stageData.ap_model || !stageData.ap_model.arrows) return;
                 stageData.ap_model.arrows.forEach(arrowData => {{
                     let sourceNode = allNodes[`s${{stageData.stage}}-${{arrowData.source}}`];
                     let targetNode = allNodes[`s${{stageData.stage}}-${{arrowData.target}}`];
@@ -638,5 +639,9 @@ if st.session_state.show_vis:
             # Display the HTML content
             st.components.v1.html(html_content, height=800, scrolling=True)
             
+            # Add a button to "close" the expander
+            if st.button("閉じる"):
+                st.session_state.show_vis = False
+                st.rerun()
         else:
             st.warning("可視化するAPモデルデータがありません。")
