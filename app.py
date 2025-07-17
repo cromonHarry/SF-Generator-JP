@@ -12,12 +12,372 @@ import concurrent.futures # 並列処理のためにインポート
 # ========== Page Setup ==========
 st.set_page_config(page_title="近未来SF生成器", layout="wide")
 
+<<<<<<< HEAD
 # ========== Client Initialization ==========
 try:
     client = OpenAI(api_key=st.secrets["openai"]["api_key"])
     tavily_client = TavilyClient(api_key=st.secrets["tavily"]["api_key"])
 except Exception:
     st.error("❌ APIキーが設定されていません。StreamlitのSecretsに `openai` と `tavily` のAPIキーを追加してください。")
+=======
+# ========== Visualization Page ==========
+if st.session_state.page == "visualization":
+    st.set_page_config(page_title="APモデル可視化", layout="wide")
+    
+    st.title("🔬 APモデル可視化")
+    st.markdown("APモデルの3段階の進化を可視化します。")
+    
+    # Check if AP model data exists
+    if 'ap_history' in st.session_state and st.session_state.ap_history:
+        # Create the HTML visualization
+        # --- ここからが変更後のコードブロックです ---
+        html_content = '''
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APモデル可視化</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 95vw; /* 変更なし */
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .vis-wrapper {
+            overflow-x: auto;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+        
+        .visualization {
+            position: relative;
+            width: 1350px; /* 変更: 2200pxから縮小 */
+            height: 600px; /* 変更: 700pxから縮小 */
+            background: #fafafa;
+        }
+        
+        .node {
+            position: absolute;
+            width: 110px;   /* 変更: 140pxから縮小 */
+            height: 110px;  /* 変更: 140pxから縮小 */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;   /* 変更: 13pxから縮小 */
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border: 3px solid white;
+            line-height: 1.2;
+            padding: 10px; /* 変更: 15pxから縮小 */
+            box-sizing: border-box;
+        }
+        
+        .node:hover {
+            transform: scale(1.1);
+            z-index: 100;
+        }
+        
+        /* Node Colors */
+        .node-前衛的社会問題 { background: #ff9999; }
+        .node-人々の価値観 { background: #ecba13; }
+        .node-社会問題 { background: #ffff99; }
+        .node-技術や資源 { background: #99cc99; }
+        .node-日常の空間とユーザー体験 { background: #99cccc; }
+        .node-制度 { background: #9999ff; }
+        
+        .arrow {
+            position: absolute;
+            height: 2px;
+            background: #333;
+            transform-origin: left center;
+            z-index: 1;
+        }
+        
+        .arrow::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: -4px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid #333;
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+        }
+        
+        .arrow-label {
+            position: absolute;
+            background: white;
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            border-radius: 15px;
+            font-size: 10px;
+            white-space: nowrap;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        
+        .dotted-arrow {
+            border-top: 2px dotted #333;
+            background: transparent;
+        }
+        
+        .dotted-arrow::after {
+            border-left-color: #333;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 300px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            line-height: 1.4;
+        }
+        
+        .tooltip.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 30px;">APモデル可視化</h1>
+        
+        <div class="vis-wrapper">
+            <div class="visualization" id="visualization">
+            </div>
+        </div>
+        
+        <div class="tooltip" id="tooltip"></div>
+    </div>
+
+    <script>
+        const visualization = document.getElementById('visualization');
+        const tooltip = document.getElementById('tooltip');
+        let allNodes = {};
+
+        // Load AP model data from session state
+        const apModelData = ''' + json.dumps(st.session_state.ap_history, ensure_ascii=False) + ''';
+
+        function getNodePosition(stageIndex, nodeType) {
+            const stageWidth = 430; // 変更: 700から縮小
+            const xOffset = stageIndex * stageWidth;
+            
+            // Y座標も少し詰める
+            const yTop = 50;
+            const yMid = 250;
+            const yBottom = 450;
+            
+            // X座標を新しいStageWidthに合わせて再計算
+            const xLeft = 30;
+            const xMidLeft = 130;
+            const xCenter = 215;
+            const xMidRight = 300;
+            const xRight = 380;
+
+            if (stageIndex % 2 === 0) { 
+                switch(nodeType) {
+                    case '制度':                      return { x: xOffset + xCenter, y: yTop };
+                    case '日常の空間とユーザー体験':  return { x: xOffset + xMidLeft, y: yMid };
+                    case '社会問題':                  return { x: xOffset + xMidRight, y: yMid };
+                    case '技術や資源':              return { x: xOffset + xLeft,  y: yBottom };
+                    case '前衛的社会問題':            return { x: xOffset + xCenter, y: yBottom };
+                    case '人々の価値観':              return { x: xOffset + xRight, y: yBottom };
+                    default:                        return null;
+                }
+            } else { 
+                switch(nodeType) {
+                    case '技術や資源':              return { x: xOffset + xLeft,  y: yTop };
+                    case '前衛的社会問題':            return { x: xOffset + xCenter, y: yTop };
+                    case '人々の価値観':              return { x: xOffset + xRight, y: yTop };
+                    case '日常の空間とユーザー体験':  return { x: xOffset + xMidLeft, y: yMid };
+                    case '社会問題':                  return { x: xOffset + xMidRight, y: yMid };
+                    case '制度':                      return { x: xOffset + xCenter, y: yBottom };
+                    default:                        return null;
+                }
+            }
+        }
+
+        function renderAllStages() {
+            visualization.innerHTML = '';
+            allNodes = {}; 
+
+            apModelData.forEach((stageData, stageIndex) => {
+                stageData.ap_model.nodes.forEach(nodeData => {
+                    const position = getNodePosition(stageIndex, nodeData.type);
+                    if (!position) return;
+
+                    const node = document.createElement('div');
+                    node.className = `node node-${nodeData.type}`;
+                    node.style.left = position.x + 'px';
+                    node.style.top = position.y + 'px';
+                    node.textContent = nodeData.type;
+                    node.dataset.definition = nodeData.definition;
+                    node.dataset.id = `s${stageData.stage}-${nodeData.type}`;
+
+                    node.addEventListener('mouseenter', showTooltip);
+                    node.addEventListener('mouseleave', hideTooltip);
+
+                    visualization.appendChild(node);
+                    allNodes[node.dataset.id] = node;
+                });
+            });
+
+            apModelData.forEach((stageData, stageIndex) => {
+                const nextStage = apModelData[stageIndex + 1];
+
+                stageData.ap_model.arrows.forEach(arrowData => {
+                    const isLastStage = !nextStage;
+                    const arrowType = arrowData.type;
+                    const typesToHideInLastStage = ['標準化', '組織化', '意味付け', '習慣化'];
+
+                    if (isLastStage && typesToHideInLastStage.includes(arrowType)) {
+                        return;
+                    }
+                    
+                    let sourceNode = allNodes[`s${stageData.stage}-${arrowData.source}`];
+                    let targetNode;
+                    let isInterStage = false;
+
+                    if (nextStage && (arrowType === '組織化' || arrowType === '標準化')) {
+                        targetNode = allNodes[`s${nextStage.stage}-技術や資源`];
+                        isInterStage = !!targetNode;
+                    } else if (nextStage && arrowType === '意味付け') {
+                        targetNode = allNodes[`s${nextStage.stage}-日常の空間とユーザー体験`];
+                        isInterStage = !!targetNode;
+                    } else if (nextStage && arrowType === '習慣化') {
+                        targetNode = allNodes[`s${nextStage.stage}-制度`];
+                        isInterStage = !!targetNode;
+                    }
+
+                    if (!isInterStage) {
+                        targetNode = allNodes[`s${stageData.stage}-${arrowData.target}`];
+                    }
+
+                    if (sourceNode && targetNode) {
+                        const isDotted = arrowData.type === 'アート（社会批評）' || arrowData.type === 'アート(社会批評)' || arrowData.type === 'メディア';
+                        createArrow(sourceNode, targetNode, arrowData, isDotted);
+                    }
+                });
+            });
+        }
+
+        function createArrow(sourceNode, targetNode, arrowData, isDotted) {
+            const nodeRadius = 55; // 変更: 70から縮小 (新しいノードの直径110pxの半分)
+            
+            const startPos = { x: parseFloat(sourceNode.style.left), y: parseFloat(sourceNode.style.top) };
+            const endPos = { x: parseFloat(targetNode.style.left), y: parseFloat(targetNode.style.top) };
+
+            const dx = (endPos.x + nodeRadius) - (startPos.x + nodeRadius);
+            const dy = (endPos.y + nodeRadius) - (startPos.y + nodeRadius);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+            const adjustedStartX = startPos.x + nodeRadius + (dx / distance) * nodeRadius;
+            const adjustedStartY = startPos.y + nodeRadius + (dy / distance) * nodeRadius;
+            const adjustedDistance = distance - (nodeRadius * 2);
+
+            const arrow = document.createElement('div');
+            arrow.className = isDotted ? 'arrow dotted-arrow' : 'arrow';
+            arrow.style.left = adjustedStartX + 'px';
+            arrow.style.top = adjustedStartY + 'px';
+            arrow.style.width = adjustedDistance + 'px';
+            arrow.style.transform = `rotate(${angle}deg)`;
+
+            const label = document.createElement('div');
+            label.className = 'arrow-label';
+            label.textContent = arrowData.type;
+            
+            const labelX = adjustedStartX + (dx / distance) * (adjustedDistance / 2);
+            const labelY = adjustedStartY + (dy / distance) * (adjustedDistance / 2);
+            label.style.left = labelX + 'px';
+            label.style.top = labelY + 'px';
+            
+            label.dataset.definition = arrowData.definition;
+            label.addEventListener('mouseenter', showTooltip);
+            label.addEventListener('mouseleave', hideTooltip);
+
+            visualization.appendChild(arrow);
+            visualization.appendChild(label);
+        }
+
+        function showTooltip(event) {
+            const definition = event.target.dataset.definition;
+            if (definition) {
+                tooltip.innerHTML = definition;
+                tooltip.style.left = (event.pageX + 15) + 'px';
+                tooltip.style.top = (event.pageY - 10) + 'px';
+                tooltip.classList.add('show');
+            }
+        }
+
+        function hideTooltip() {
+            tooltip.classList.remove('show');
+        }
+
+        // Initialize visualization
+        renderAllStages();
+    </script>
+</body>
+</html>
+        '''
+        # --- ここまでが変更後のコードブロックです ---
+        
+        # Display the HTML content
+        st.components.v1.html(html_content, height=650, scrolling=True) # 高さを少し調整
+        
+        # Download options
+        st.subheader("ダウンロードオプション")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            ap_json = json.dumps(st.session_state.ap_history, ensure_ascii=False, indent=2)
+            st.download_button(
+                label="📥 APモデルJSONをダウンロード",
+                data=ap_json,
+                file_name="ap_model.json",
+                mime="application/json"
+            )
+        
+        with col2:
+            if 'story' in st.session_state and st.session_state.story:
+                st.download_button(
+                    label="📥 SF小説をダウンロード",
+                    data=st.session_state.story,
+                    file_name="sf_story.txt",
+                    mime="text/plain"
+                )
+    
+    else:
+        st.warning("可視化するAPモデルデータがありません。メインページでAPモデルを生成してください。")
+    
+    if st.button("⬅ メインページに戻る"):
+        st.session_state.page = "main"
+        st.rerun()
+>>>>>>> 7b58336b9db1896c92c9cd5908ccb51a3957384a
     st.stop()
 
 
@@ -90,7 +450,33 @@ def parse_json_response(gpt_output: str) -> dict:
         st.error(f"解析しようとした文字列: {result_str}")
         raise e
 
+<<<<<<< HEAD
 # ========== Stage 1: Tavily Functions ==========
+=======
+def generate_suggestions(topic: str, reason: str) -> list[str]:
+    """LLMで改善案を生成"""
+    user_prompt = f"""
+テーマ「{topic}」について、ユーザーは現状に満足しておらず、その理由を「{reason}」と述べています。
+この状況を改善するための可能な発展方向を5つ、それぞれ１０字以内で簡潔に生成してください。
+出力は "suggestions" というキーを持つJSONオブジェクトにしてください。
+{{
+    "suggestions": ["提案1", "提案2", "提案3", "提案4", "提案5"]
+}}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": user_prompt}],
+            response_format={"type": "json_object"}
+        )
+        result = json.loads(response.choices[0].message.content)
+        return result.get("suggestions", [])
+    except Exception:
+        return ["AIによる提案の生成に失敗しました。手動で入力してください。"]
+
+# --- New Tavily-based functions ---
+
+>>>>>>> 7b58336b9db1896c92c9cd5908ccb51a3957384a
 def generate_question_for_object(product: str, object_name: str, object_description: str) -> str:
     prompt = f"""
 {product}について、APモデルの対象「{object_name}」({object_description})に関する自然で完整な質問文を1つ生成してください。
@@ -342,7 +728,55 @@ def generate_story(topic: str, scene: str, ap_model_history: list, descriptions:
         # user_prompt += f"APモデル詳細:\n{json.dumps(model_data['ap_model'], ensure_ascii=False, indent=2)}\n\n"
     user_prompt += "それでは、上記の情報を盛り込み、指定されたシーンを舞台とした物語を日本語で1000字程度で執筆してください。"
     
+<<<<<<< HEAD
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}])
+=======
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ],
+        response_format={"type": "json_object"}
+    )
+    
+    try:
+        result = parse_json_response(response.choices[0].message.content)
+        return result
+    except Exception as e:
+        return {"nodes": [], "arrows": []}
+
+def generate_story(product: str, ap_model: list[dict], description: list[str], user_inputs: dict) -> str:
+    """SF短編小説を生成"""
+    user_prompt = f"""
+以下は{product}に関するAPモデルの情報です：
+"""
+    for i in range(len(ap_model)):
+        user_prompt += f"""
+##第{i+1}段階のAPモデル:
+{ap_model[i]}
+##第{i+1}段階の{product}の説明:
+{description[i]}
+
+"""
+    user_prompt += f"""
+##ユーザーの未来構想:
+{user_inputs['vision']}
+
+"""    
+    
+    user_prompt += f"""
+それでは{product}をテーマとしてAPモデルの内容を基づき、近未来短編SF小説を生成してください。**重要**: 文字数は日本語1000字程度で。
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ],
+    )
+
+>>>>>>> 7b58336b9db1896c92c9cd5908ccb51a3957384a
     return response.choices[0].message.content
 
 # ========== Main UI ==========
@@ -365,6 +799,7 @@ if not st.session_state.generation_complete:
     topic = st.text_input("分析したいテーマを入力してください", placeholder="例：八ツ橋、自動運転、量子コンピュータ")
     scene = st.text_area("物語の舞台となるシーンを具体的に記述してください", placeholder="例：夕暮れ時の京都、八ツ橋を売る古民家カフェ")
 
+<<<<<<< HEAD
     if st.button("APモデルとSF小説を生成", type="primary", disabled=not topic or not scene):
         st.session_state.topic = topic
         st.session_state.scene = scene
@@ -373,6 +808,137 @@ if not st.session_state.generation_complete:
         st.session_state.story = ""
         
         progress_bar = st.progress(0.0, "生成プロセスを開始します...")
+=======
+elif st.session_state.conversation_step == 2:
+    st.markdown(f"「{st.session_state.selected_topic}」の現在の発展状況について、あなたの評価を教えてください。")
+    
+    score = st.slider(
+        "現状について、10点満点で採点してください。",
+        min_value=1,
+        max_value=10,
+        value=5,
+        help="1点 = 非常に不満, 10点 = 非常に満足"
+    )
+    
+    if st.button("次へ進む"):
+        st.session_state.user_inputs['score'] = score
+        st.session_state.conversation_step = 3
+        st.rerun()
+
+elif st.session_state.conversation_step == 3:
+    st.markdown(f"「{st.session_state.selected_topic}」の現状評価で、満点にしなかった主な理由は何ですか？具体的であるほど、より良い提案が得られます。")
+    
+    reason = st.text_area(
+        "評価が満点ではない理由を教えてください。",
+        placeholder="例：コストが高い、特定のユーザーしか利用できない、環境への影響が懸念されるなど",
+        key="reason_input"
+    )
+    
+    if st.button("改善方向の生成に進む", disabled=not reason):
+        st.session_state.user_inputs['reason'] = reason
+        st.session_state.conversation_step = 4
+        st.rerun()
+
+elif st.session_state.conversation_step == 4:
+    st.markdown("ご指摘いただいた問題点に基づき、AIが以下の改善方向を生成しました。未来の構想の参考にするものを選択してください。（複数選択可）")
+    
+    if not st.session_state.generated_suggestions:
+        with st.spinner("AIが改善方向を生成中..."):
+            suggestions = generate_suggestions(
+                st.session_state.selected_topic,
+                st.session_state.user_inputs['reason']
+            )
+            st.session_state.generated_suggestions = suggestions
+
+    # --- ここからが変更箇所 ---
+    st.markdown("**改善方向を選択してください:**")
+    options = st.session_state.generated_suggestions
+    selected_options = [] # 選択された項目を格納する空のリストを準備
+
+    # enumerateを使い、各選択肢にユニークなキーを割り当てる
+    for i, suggestion in enumerate(options):
+        # 各提案に対してチェックボックスを作成
+        if st.checkbox(suggestion, key=f"suggestion_cb_{i}"):
+            # チェックされた場合、その提案をリストに追加
+            selected_options.append(suggestion)
+    # --- ここまでが変更箇所 ---
+    
+    custom_option = st.text_input("その他、独自の改善方向があれば入力してください:")
+
+    if st.button("次へ進む", disabled=not (selected_options or custom_option)):
+        final_suggestions = selected_options
+        if custom_option:
+            final_suggestions.append(custom_option)
+        st.session_state.user_inputs['selected_suggestions'] = final_suggestions
+        st.session_state.conversation_step = 5
+        st.rerun()
+
+elif st.session_state.conversation_step == 5:
+    st.markdown("選択した改善方向を踏まえ、未来にどのような姿になってほしいか、あなたの構想を具体的に記述してください。")
+    
+    vision = st.text_area(
+        "未来の構想を教えてください。",
+        placeholder="例：誰もが手頃な価格で利用できるようになり、持続可能なエネルギーで動作することで、私たちの生活をより豊かにしてほしい。",
+        key="vision_input"
+    )
+    
+    if st.button("次へ進む", disabled=not vision):
+        st.session_state.user_inputs['vision'] = vision
+        st.session_state.conversation_step = 6
+        st.rerun()
+
+elif st.session_state.conversation_step == 6:
+    st.subheader("入力内容の確認")
+    st.markdown("以下の内容でAPモデルとSF小説を構築します。よろしければ生成を開始してください。")
+    
+    st.markdown(f"**分析するテーマ:**")
+    st.info(st.session_state.selected_topic)
+    
+    st.markdown(f"**現状の評価:**")
+    st.info(f"{st.session_state.user_inputs['score']} / 10点")
+
+    st.markdown(f"**問題点:**")
+    st.info(st.session_state.user_inputs['reason'])
+
+    st.markdown(f"**選択した改善方向:**")
+    st.info("\n".join([f"- {s}" for s in st.session_state.user_inputs['selected_suggestions']]))
+
+    st.markdown(f"**未来の構想:**")
+    st.info(st.session_state.user_inputs['vision'])
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("APモデルとSF小説を生成", type="primary"):
+            st.session_state.conversation_step = 7
+            st.rerun()
+    with col2:
+        if st.button("最初からやり直し"):
+            # Reset all states
+            keys_to_reset = [
+                'conversation_step', 'user_inputs', 
+                'selected_topic', 'ap_history', 
+                'descriptions', 'story', 'generating', 'generated_suggestions'
+            ]
+            for key in keys_to_reset:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
+elif st.session_state.conversation_step == 7:
+    if not st.session_state.generating:
+        st.session_state.generating = True
+        
+        imagination = f"""
+【現状評価】: {st.session_state.user_inputs['score']}点
+【問題点】: {st.session_state.user_inputs['reason']}
+【選択された改善方向】: {', '.join(st.session_state.user_inputs['selected_suggestions'])}
+【未来構想】: {st.session_state.user_inputs['vision']}
+"""
+        
+        progress_bar = st.progress(0, text="生成プロセスを開始します...")
+        ap_history = []
+        descriptions = []
+>>>>>>> 7b58336b9db1896c92c9cd5908ccb51a3957384a
         
         try:
             # Stage 1
@@ -380,6 +946,7 @@ if not st.session_state.generation_complete:
             st.session_state.descriptions.append(intro1)
             st.session_state.ap_history.append({"stage": 1, "ap_model": model1})
             
+<<<<<<< HEAD
             # Agent Generation
             with st.spinner("分析のための専門家AIエージェントを生成中..."):
                 agents = generate_agents(topic)
@@ -388,6 +955,48 @@ if not st.session_state.generation_complete:
             with st.expander("生成されたエージェントを見る"):
                 for agent in agents:
                     st.write(f"- **{agent['name']}**: {agent['expertise']} ({agent['perspective']})")
+=======
+            # Stage 2: Future evolution
+            progress_bar.progress(0.4, text="第2段階：未来展望（離陸期）の紹介を生成中...")
+            introduction2, tech_resources2, daily_experience2 = update_to_next_stage(
+                st.session_state.selected_topic, ap_history, descriptions, imagination, 2
+            )
+            descriptions.append(introduction2)
+            progress_bar.progress(0.55, text="第2段階：未来展望（離陸期）のAPモデルを構築中...")
+            ap_model2 = update_ap_model(st.session_state.selected_topic, ap_history, descriptions, tech_resources2, daily_experience2, 2)
+            ap_history.append({"stage": 2, "ap_model": ap_model2})
+            
+            # Stage 3: Maturity stage
+            progress_bar.progress(0.7, text="第3段階：未来展望（成熟期）の紹介を生成中...")
+            introduction3, tech_resources3, daily_experience3 = update_to_next_stage(
+                st.session_state.selected_topic, ap_history, descriptions, imagination, 3
+            )
+            descriptions.append(introduction3)
+            progress_bar.progress(0.85, text="第3段階：未来展望（成熟期）のAPモデルを構築中...")
+            ap_model3 = update_ap_model(st.session_state.selected_topic, ap_history, descriptions, tech_resources3, daily_experience3, 3)
+            ap_history.append({"stage": 3, "ap_model": ap_model3})
+            
+            # Generate story
+            progress_bar.progress(0.9, text="最終段階：SF短編小説を生成中...")
+            story = generate_story(st.session_state.selected_topic, ap_history, descriptions, st.session_state.user_inputs)
+            
+            # Store results
+            st.session_state.ap_history = ap_history
+            st.session_state.descriptions = descriptions
+            st.session_state.story = story
+            st.session_state.generating = False
+            
+            progress_bar.progress(1.0, text="✅ 生成完了！")
+            time.sleep(1)
+            progress_bar.empty()
+            
+            st.session_state.conversation_step = 8
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"エラーが発生しました: {e}")
+            st.session_state.generating = False
+>>>>>>> 7b58336b9db1896c92c9cd5908ccb51a3957384a
 
             # Generate a generic user vision
             user_vision = f"「{topic}」が技術の進化を通じて、より多くの人々に利益をもたらし、持続可能な形で社会に貢献することを期待します。"
@@ -483,6 +1092,7 @@ if st.session_state.generation_complete:
                 del st.session_state[key]
         st.rerun()
 
+<<<<<<< HEAD
 # --- Visualization Dialog ---
 if st.session_state.show_vis:
     with st.dialog("APモデル可視化", width="large"):
@@ -640,3 +1250,49 @@ if st.session_state.show_vis:
             
         else:
             st.warning("可視化するAPモデルデータがありません。")
+=======
+# Sidebar information
+with st.sidebar:
+    st.header("📖 APモデルについて")
+    st.markdown("""
+    **アーキオロジカル・プロトタイピング（AP）モデル**は、社会文化を18の要素（6つの対象と12の射）で分析するモデルです。
+    
+    **Sカーブ進化モデル**:
+    - **第1段階（揺籃期）**: 現状
+    - **第2段階（離陸期）**: 未来の構想
+    - **第3段階（成熟期）**: その構想の改善
+    """)
+    
+    if st.session_state.conversation_step > 0:
+        st.markdown("---")
+        st.markdown("**現在の進行状況:**")
+        
+        steps = [
+            "興味の入力",      # 0
+            # "テーマ選択" is removed, but we keep numbering for logic simplicity
+            "現状評価",        # 2
+            "問題点入力",      # 3
+            "改善方向選択",      # 4
+            "未来構想",        # 5
+            "内容確認",        # 6
+            "モデルと小説生成",# 7
+            "結果表示"         # 8
+        ]
+        
+        # A map to correctly associate step number with display text
+        step_map = {0: "興味の入力", 2: "現状評価", 3: "問題点入力", 4: "改善方向選択", 5: "未来構想", 6: "内容確認", 7: "モデルと小説生成", 8: "結果表示"}
+        
+        current_step = st.session_state.conversation_step
+
+        for step_num, step_name in step_map.items():
+            if step_num < current_step:
+                st.markdown(f"✅ {step_name}")
+            elif step_num == current_step:
+                st.markdown(f"➡️ **{step_name}**")
+            else:
+                st.markdown(f"⭕ {step_name}")
+
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("Made by Zhang Menghan using Streamlit")
+>>>>>>> 7b58336b9db1896c92c9cd5908ccb51a3957384a
