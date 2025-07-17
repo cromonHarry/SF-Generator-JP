@@ -373,7 +373,7 @@ def show_agent_proposals(element_result):
     """
     マルチエージェントの提案結果をきれいに表示する (ネストエラー修正版)
     """
-    st.markdown(f"#### 🧠 中核要素「{element_result['element_type']}」の生成プロセス")
+    st.markdown(f"#### 🧠「{element_result['element_type']}」の生成プロセス")
     
     # st.expander のネストを避けるため、反復ごとの expander を削除し、
     # 代わりに markdown のヘッダーと区切り線を使用します。
