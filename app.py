@@ -334,15 +334,50 @@ def generate_stage_introduction(topic: str, stage: int, new_elements: dict, user
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0)
     return response.choices[0].message.content.strip()
 
-# ========== Story Generation Function ==========
-def generate_story(topic: str, scene: str, ap_model_history: list, descriptions: list) -> str:
-    user_prompt = f"テーマ「{topic}」について、以下のAPモデルの情報と「{scene}」というシーン設定を基に、近未来の短編SF小説を生成してください。\n\n"
-    for i, (model_data, desc) in enumerate(zip(ap_model_history, descriptions)):
-        user_prompt += f"## 第{i+1}段階: {desc}\n"
-        # user_prompt += f"APモデル詳細:\n{json.dumps(model_data['ap_model'], ensure_ascii=False, indent=2)}\n\n"
-    user_prompt += "それでは、上記の情報を盛り込み、指定されたシーンを舞台とした物語を日本語で1000字程度で執筆してください。"
-    
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}])
+# ========== Story Generation Functions (NEW) ==========
+def generate_outline(theme: str, scene: str, ap_model_history: list) -> str:
+    prompt = f"""
+あなたはプロのSF作家です。以下の情報に基づき、「{theme}」をテーマにした短編SF小説のあらすじを作成してください。
+
+## 物語の舞台 (Story Setting):
+{scene}
+
+## 物語の始まり（Sカーブの第2段階）：
+{json.dumps(ap_model_history[1]['ap_model'], ensure_ascii=False, indent=2)}
+
+## 物語の結末（Sカーブの第3段階）：
+{json.dumps(ap_model_history[2]['ap_model'], ensure_ascii=False, indent=2)}
+
+## 物語の背景（Sカーブの第1段階）：
+{json.dumps(ap_model_history[0]['ap_model'], ensure_ascii=False, indent=2)}
+
+上記の情報に基づき、指定された舞台で繰り広げられる物語の主要なプロット、登場人物、そして中心となる葛藤を含む物語のあらすじを作成してください。あらすじはSF小説のスタイルに沿った、革新的で魅力的なものである必要があります。
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return response.choices[0].message.content
+
+def generate_story(theme: str, outline: str) -> str:
+    prompt = f"""
+あなたはプロのSF作家です。以下のあらすじに基づき、「{theme}」をテーマにした短編SF小説を執筆してください。
+
+## 物語のあらすじ：
+{outline}
+
+このあらすじに沿って、一貫性のある物語を執筆してください。物語は革新的で魅力的、かつSFのスタイルに沿ったものである必要があります。文字数は日本語で1500字程度でお願いします。
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+    )
     return response.choices[0].message.content
 
 # ========== Main UI ==========
@@ -416,10 +451,14 @@ if not st.session_state.generation_complete:
                 st.session_state.ap_history.append({"stage": 3, "ap_model": model3})
                 status.update(label="第3段階完了！", state="complete")
 
-            # Story Generation
-            progress_bar.progress(0.9, "最終段階: SF短編小説を生成中...")
-            with st.spinner("最終段階：SF短編小説を生成中..."):
-                story = generate_story(topic, scene, st.session_state.ap_history, st.session_state.descriptions)
+            # Story Generation (New 2-step process)
+            progress_bar.progress(0.9, "最終段階: SF小説のあらすじを生成中...")
+            with st.spinner("最終段階：SF小説のあらすじを生成中..."):
+                outline = generate_outline(topic, scene, st.session_state.ap_history)
+            
+            progress_bar.progress(0.95, "最終段階: あらすじからSF短編小説を生成中...")
+            with st.spinner("最終段階：あらすじからSF短編小説を生成中..."):
+                story = generate_story(topic, outline)
                 st.session_state.story = story
             
             progress_bar.progress(1.0, "生成完了！")
