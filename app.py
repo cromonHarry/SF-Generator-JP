@@ -406,7 +406,6 @@ def show_agent_proposals(element_result):
 st.title("🚀 近未来SF生成器 (自動実行版)")
 
 # --- Session Stateの初期化 ---
-# process_stepをprocess_startedというブール値に変更し、よりシンプルに管理
 if 'process_started' not in st.session_state:
     st.session_state.process_started = False
     st.session_state.topic = ""
@@ -415,11 +414,7 @@ if 'process_started' not in st.session_state:
     st.session_state.descriptions = []
     st.session_state.story = ""
     st.session_state.agents = []
-    # 各ステージの要素生成プロセスを保存する場所を初期化
-    st.session_state.stage_elements_results = {
-        'stage2': [],
-        'stage3': []
-    }
+    st.session_state.stage_elements_results = {'stage2': [], 'stage3': []}
 
 # --- STEP 0: 初期入力画面 ---
 if not st.session_state.process_started:
@@ -428,7 +423,6 @@ if not st.session_state.process_started:
     topic_input = st.text_input("分析したいテーマを入力してください", placeholder="例：八ツ橋、自動運転、量子コンピュータ")
     scene_input = st.text_area("物語の舞台となるシーンを具体的に記述してください", placeholder="例：夕暮れ時の京都、八ツ橋を売る古民家カフェ")
 
-    # このボタンを押すと、全プロセスが自動で開始される
     if st.button("分析と物語生成を自動で開始 →", type="primary", disabled=not topic_input or not scene_input):
         st.session_state.topic = topic_input
         st.session_state.scene = scene_input
@@ -440,53 +434,22 @@ else:
     st.header(f"テーマ: {st.session_state.topic}")
     user_vision = f"「{st.session_state.topic}」が技術の進化を通じて、より多くの人々に利益をもたらし、持続可能な形で社会に貢献することを期待します。"
 
-    # --- Stage 1: 揺籃期 ---
-    # まだ第1段階が実行されていない場合
-    if len(st.session_state.ap_history) == 0:
-        with st.status("第1段階：TavilyによるWeb情報収集とAPモデル構築中...", expanded=True) as status:
-            intro1, model1 = build_stage1_ap_with_tavily(st.session_state.topic, status)
-            st.session_state.descriptions.append(intro1)
-            st.session_state.ap_history.append({"stage": 1, "ap_model": model1})
-        # 実行後、画面をリフレッシュして結果を表示
-        st.rerun()
+    # ==================================================================
+    # 表示エリア： 常に存在するデータを表示する
+    # ==================================================================
+    # --- Stage 1 表示 ---
+    if len(st.session_state.ap_history) >= 1:
+        st.markdown("---")
+        st.header("Stage 1: 揺籃期（現状分析）")
+        st.info(st.session_state.descriptions[0])
+        show_visualization(st.session_state.ap_history[0:1])
 
-    # 第1段階が完了していれば、その結果を表示
-    st.markdown("---")
-    st.header("Stage 1: 揺籃期（現状分析）")
-    st.info(st.session_state.descriptions[0])
-    show_visualization(st.session_state.ap_history[0:1])
-
-    # --- Stage 2: 離陸期 ---
-    # 第1段階は完了したが、第2段階がまだの場合
-    if len(st.session_state.ap_history) == 1:
-        with st.spinner("分析のための専門家AIエージェントを生成中..."):
-            st.session_state.agents = generate_agents(st.session_state.topic)
-        
-        with st.status("第2段階：Multi-Agentによる未来予測とAPモデル構築中...", expanded=True) as status:
-            context = {}
-            element_sequence = ["技術や資源", "日常の空間とユーザー体験", "前衛的社会問題"]
-            for elem_type in element_sequence:
-                status.update(label=f"第2段階 中核要素「{elem_type}」を生成中...")
-                result = generate_single_element_with_iterations(status, st.session_state.topic, elem_type, st.session_state.ap_history[0]['ap_model'], st.session_state.agents, user_vision, context)
-                context[elem_type] = result['final_decision']['final_selected_content']
-                st.session_state.stage_elements_results['stage2'].append(result)
-            
-            status.update(label="第2段階：APモデル全体を構築中...")
-            model2 = build_complete_ap_model(st.session_state.topic, st.session_state.ap_history[0]['ap_model'], context, 2, user_vision)
-            status.update(label="第2段階：紹介文を生成中...")
-            intro2 = generate_stage_introduction(st.session_state.topic, 2, context, user_vision)
-            
-            st.session_state.descriptions.append(intro2)
-            st.session_state.ap_history.append({"stage": 2, "ap_model": model2})
-        # 実行後、画面をリフレッシュ
-        st.rerun()
-
-    # 第2段階が完了していれば、その結果を表示
-    if len(st.session_state.ap_history) >= 2:
+    # --- Stage 2 表示 ---
+    if st.session_state.agents:
         st.markdown("---")
         st.header("Stage 2: 離陸期（発展予測）")
-        with st.expander("第2段階の生成プロセス詳細を見る", expanded=False):
-            st.subheader("🤖 専門家AIエージェントチーム")
+        st.subheader("🤖 専門家AIエージェントチーム")
+        with st.expander("生成されたエージェントを見る", expanded=True):
             cols = st.columns(len(st.session_state.agents))
             for i, agent in enumerate(st.session_state.agents):
                 with cols[i]:
@@ -494,48 +457,105 @@ else:
                     st.write(f"**専門:** {agent['expertise']}")
                     st.write(f"**性格:** {agent['personality']}")
                     st.write(f"**視点:** {agent['perspective']}")
-            
-            for result in st.session_state.stage_elements_results['stage2']:
-                show_agent_proposals(result)
-        
+    
+    if st.session_state.stage_elements_results['stage2']:
+        for result in st.session_state.stage_elements_results['stage2']:
+            show_agent_proposals(result)
+
+    if len(st.session_state.ap_history) >= 2:
         st.info(st.session_state.descriptions[1])
         show_visualization(st.session_state.ap_history[0:2])
 
-    # --- Stage 3: 成熟期 ---
-    # 第2段階は完了したが、第3段階がまだの場合
-    if len(st.session_state.ap_history) == 2:
-        with st.status("第3段階：Multi-Agentによる未来予測とAPモデル構築中...", expanded=True) as status:
-            context2 = {}
-            element_sequence = ["技術や資源", "日常の空間とユーザー体験", "前衛的社会問題"]
-            for elem_type in element_sequence:
-                 status.update(label=f"第3段階 中核要素「{elem_type}」を生成中...")
-                 result = generate_single_element_with_iterations(status, st.session_state.topic, elem_type, st.session_state.ap_history[1]['ap_model'], st.session_state.agents, user_vision, context2)
-                 context2[elem_type] = result['final_decision']['final_selected_content']
-                 st.session_state.stage_elements_results['stage3'].append(result)
-
-            status.update(label="第3段階：APモデル全体を構築中...")
-            model3 = build_complete_ap_model(st.session_state.topic, st.session_state.ap_history[1]['ap_model'], context2, 3, user_vision)
-            status.update(label="第3段階：紹介文を生成中...")
-            intro3 = generate_stage_introduction(st.session_state.topic, 3, context2, user_vision)
-            
-            st.session_state.descriptions.append(intro3)
-            st.session_state.ap_history.append({"stage": 3, "ap_model": model3})
-        # 実行後、画面をリフレッシュ
-        st.rerun()
-
-    # 第3段階が完了していれば、その結果を表示
-    if len(st.session_state.ap_history) >= 3:
+    # --- Stage 3 表示 ---
+    if st.session_state.stage_elements_results['stage3']:
         st.markdown("---")
         st.header("Stage 3: 成熟期（成熟予測）")
-        with st.expander("第3段階の生成プロセス詳細を見る", expanded=False):
-            for result in st.session_state.stage_elements_results['stage3']:
-                show_agent_proposals(result)
+        for result in st.session_state.stage_elements_results['stage3']:
+            show_agent_proposals(result)
+            
+    if len(st.session_state.ap_history) >= 3:
         st.info(st.session_state.descriptions[2])
         show_visualization(st.session_state.ap_history)
 
-    # --- Story Generation: 物語生成 ---
-    # 第3段階まで完了したが、物語がまだ生成されていない場合
-    if len(st.session_state.ap_history) == 3 and not st.session_state.story:
+    # --- 物語 表示 ---
+    if st.session_state.story:
+        st.markdown("---")
+        st.header("🎉 生成結果")
+        st.markdown(f"**シーン設定:** {st.session_state.scene}")
+        st.markdown("### 📚 生成されたSF短編小説")
+        st.text_area("SF小説", st.session_state.story, height=400)
+        
+        with st.expander("📈 3段階の未来予測の要約を見る"):
+            stages_info = ["第1段階：揺籃期", "第2段階：離陸期", "第3段階：成熟期"]
+            for i, stage_name in enumerate(stages_info):
+                st.markdown(f"**{stage_name}**")
+                st.info(st.session_state.descriptions[i])
+    
+    # ==================================================================
+    # 生成ロジック： データの有無を確認し、なければ生成する
+    # ==================================================================
+    # --- Stage 1 生成 ---
+    if len(st.session_state.ap_history) == 0:
+        with st.status("第1段階：TavilyによるWeb情報収集とAPモデル構築中...", expanded=True) as status:
+            intro1, model1 = build_stage1_ap_with_tavily(st.session_state.topic, status)
+            st.session_state.descriptions.append(intro1)
+            st.session_state.ap_history.append({"stage": 1, "ap_model": model1})
+        st.rerun()
+        
+    # --- Stage 2 生成 (ステップごと) ---
+    elif len(st.session_state.ap_history) == 1:
+        # Agent生成
+        if not st.session_state.agents:
+            with st.spinner("分析のための専門家AIエージェントを生成中..."):
+                st.session_state.agents = generate_agents(st.session_state.topic)
+            st.rerun()
+        
+        # 要素生成
+        s2_results = st.session_state.stage_elements_results['stage2']
+        element_sequence = ["技術や資源", "日常の空間とユーザー体験", "前衛的社会問題"]
+        if len(s2_results) < len(element_sequence):
+            elem_type = element_sequence[len(s2_results)]
+            with st.status(f"第2段階 中核要素「{elem_type}」を生成中...", expanded=True) as status:
+                # 前の要素の結果をコンテキストとして渡す
+                context = {r['element_type']: r['final_decision']['final_selected_content'] for r in s2_results}
+                result = generate_single_element_with_iterations(status, st.session_state.topic, elem_type, st.session_state.ap_history[0]['ap_model'], st.session_state.agents, user_vision, context)
+                s2_results.append(result)
+            st.rerun()
+
+        # APモデル全体の構築
+        else:
+            with st.status("第2段階：APモデル全体を構築中...", expanded=True) as status:
+                context = {r['element_type']: r['final_decision']['final_selected_content'] for r in s2_results}
+                status.update(label="第2段階：APモデル全体を構築中...")
+                model2 = build_complete_ap_model(st.session_state.topic, st.session_state.ap_history[0]['ap_model'], context, 2, user_vision)
+                status.update(label="第2段階：紹介文を生成中...")
+                intro2 = generate_stage_introduction(st.session_state.topic, 2, context, user_vision)
+                st.session_state.descriptions.append(intro2)
+                st.session_state.ap_history.append({"stage": 2, "ap_model": model2})
+            st.rerun()
+
+    # --- Stage 3 生成 (ステップごと) ---
+    elif len(st.session_state.ap_history) == 2:
+        s3_results = st.session_state.stage_elements_results['stage3']
+        element_sequence = ["技術や資源", "日常の空間とユーザー体験", "前衛的社会問題"]
+        if len(s3_results) < len(element_sequence):
+            elem_type = element_sequence[len(s3_results)]
+            with st.status(f"第3段階 中核要素「{elem_type}」を生成中...", expanded=True) as status:
+                context = {r['element_type']: r['final_decision']['final_selected_content'] for r in s3_results}
+                result = generate_single_element_with_iterations(status, st.session_state.topic, elem_type, st.session_state.ap_history[1]['ap_model'], st.session_state.agents, user_vision, context)
+                s3_results.append(result)
+            st.rerun()
+        else:
+            with st.status("第3段階：APモデル全体を構築中...", expanded=True) as status:
+                context2 = {r['element_type']: r['final_decision']['final_selected_content'] for r in s3_results}
+                model3 = build_complete_ap_model(st.session_state.topic, st.session_state.ap_history[1]['ap_model'], context2, 3, user_vision)
+                intro3 = generate_stage_introduction(st.session_state.topic, 3, context2, user_vision)
+                st.session_state.descriptions.append(intro3)
+                st.session_state.ap_history.append({"stage": 3, "ap_model": model3})
+            st.rerun()
+
+    # --- 物語 生成 ---
+    elif len(st.session_state.ap_history) == 3 and not st.session_state.story:
         with st.spinner("最終段階：SF小説のあらすじを生成中..."):
             outline = generate_outline(st.session_state.topic, st.session_state.scene, st.session_state.ap_history)
         with st.spinner("最終段階：あらすじからSF短編小説を生成中..."):
@@ -543,42 +563,12 @@ else:
             st.session_state.story = story
         st.success("✅ 全ての生成プロセスが完了しました！")
         time.sleep(1)
-        # 実行後、画面をリフレッシュして最終結果を表示
         st.rerun()
-
-    # --- Final Result: 最終結果表示 ---
-    # 物語が生成されたら、最終結果ページを表示
-    if st.session_state.story:
-        st.header("🎉 生成結果")
-        st.subheader(f"テーマ: {st.session_state.topic}")
-        st.markdown(f"**シーン設定:** {st.session_state.scene}")
-
-        st.markdown("### 📚 生成されたSF短編小説")
-        st.text_area("SF小説", st.session_state.story, height=400)
         
-        with st.expander("📈 3段階の未来予測の要約を見る"):
-            stages_info = ["第1段階：揺籃期 (Tavilyによる現実分析)", "第2段階：離陸期 (Multi-Agentによる発展)", "第3段階：成熟期 (Multi-Agentによる成熟)"]
-            for i, stage_name in enumerate(stages_info):
-                st.markdown(f"**{stage_name}**")
-                st.info(st.session_state.descriptions[i])
-
+    # --- 最終ページのアクションボタン ---
+    if st.session_state.story:
         st.markdown("---")
         st.subheader("アクション")
-        
-        # 全APモデルの可視化ボタン
-        if 'show_vis_final' not in st.session_state:
-            st.session_state.show_vis_final = False
-        if st.button("🔎 全APモデルを可視化", type="secondary"):
-            st.session_state.show_vis_final = not st.session_state.show_vis_final
-            st.rerun()
-
-        if st.session_state.show_vis_final:
-             with st.expander("🔬 APモデル可視化（クリックで閉じる）", expanded=True):
-                 show_visualization(st.session_state.ap_history, height=800)
-                 if st.button("閉じる"):
-                     st.session_state.show_vis_final = False
-                     st.rerun()
-        
         col1, col2 = st.columns(2)
         with col1:
             st.download_button(
@@ -595,11 +585,10 @@ else:
                 file_name=f"ap_model_{st.session_state.topic}.json",
                 mime="application/json"
             )
-        
+
+    # --- リセットボタン ---
     st.markdown("---")
-    # リセットボタンは常に表示
     if st.button("🔄 新しいテーマで再生成"):
-        # セッションステートを完全にリセット
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
