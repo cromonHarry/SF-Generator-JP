@@ -229,10 +229,10 @@ def agent_generate_element(agent: dict, topic: str, element_type: str, previous_
 def judge_element_proposals(proposals: list[dict], element_type: str, topic: str) -> dict:
     proposals_text = "".join([f"##提案{i+1} (エージェント: {p['agent_name']}):\n{p['proposal']}\n\n" for i, p in enumerate(proposals)])
     prompt = f"""
-以下は「{topic}」の「{element_type}」に関する{len(proposals)}つの提案です。各提案を創造性、実現可能性、Sカーブ理論との整合性、未来的視点の観点から評価し、最も優れた提案を選択してください。
+以下は「{topic}」の「{element_type}」に関する{len(proposals)}つの提案です。各提案を創造性、未来的視点の観点から評価し、最も想像力がある提案を選択してください。
 {proposals_text}
 以下のJSON形式で出力してください：
-{{ "selected_proposal": "選択された提案のエージェント名", "selected_content": "選択された{element_type}の提案内容", "selection_reason": "選択理由（150字以内）", "creativity_score": "創造性評価（1-10）", "feasibility_score": "実現可能性評価（1-10）", "future_vision_score": "未来的視点評価（1-10）" }}
+{{ "selected_proposal": "選択された提案のエージェント名", "selected_content": "選択された{element_type}の提案内容", "selection_reason": "選択理由（150字以内）", "creativity_score": "創造性評価（1-10）", "future_vision_score": "未来的視点評価（1-10）" }}
 """
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], response_format={"type": "json_object"})
     return parse_json_response(response.choices[0].message.content)
