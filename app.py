@@ -13,21 +13,16 @@ import concurrent.futures
 st.set_page_config(page_title="近未来SF生成器", layout="wide")
 
 # ========== Client Initialization ==========
-def initialize_clients(openai_api_key=None):
-    """OpenAIとTavilyクライアントの初期化"""
-    try:
-        # ユーザー提供のキーがあれば使用、なければsecretsから取得
-        if openai_api_key:
-            client = OpenAI(api_key=openai_api_key)
-        else:
-            client = OpenAI(api_key=st.secrets["openai"]["api_key"])
-        
-        # Tavilyは常にシステムsecretsを使用
-        tavily_client = TavilyClient(api_key=st.secrets["tavily"]["api_key"])
-        
-        return client, tavily_client, None
-    except Exception as e:
-        return None, None, str(e)
+try:
+    # 直接从Streamlit secrets配置中读取API key
+    client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+    tavily_client = TavilyClient(api_key=st.secrets["tavily"]["api_key"])
+except KeyError as e:
+    st.error(f"❌ APIキーが設定されていません。Streamlitの設定で `{e.args[0]}` を確認してください。")
+    st.stop()
+except Exception as e:
+    st.error(f"❌ API接続エラー: {str(e)}")
+    st.stop()
 
 # ========== System Prompt & Constants ==========
 SYSTEM_PROMPT = """君はサイエンスフィクションの専門家であり、「アーキオロジカル・プロトタイピング（Archaeological Prototyping, 以下AP）」モデルに基づいて社会を分析します。以下はこのモデルの紹介です。
@@ -51,15 +46,15 @@ APは、18の項目(6個の対象と12個の矢)によって構成される社�
 4. 標準化 : 制度の中でも、よりり広い関係者に影響を与えるために行われる制度の標準化。制度を新しい技術・資源に変換させる。 (制度 -> 技術・資源)
 5. コミュニケーション: 社会問題をより多くの人々に伝えるためのコミュニケーション手段。例えば、近年は SNS を介して行われることが多い。社会問題を人々の価値観に変換させる。 (社会問題 -> 人々の価値観)
 6. 組織化 : 社会問題を解決するために形成される組織。法人格の有無や新旧の組織かは問わず 、新しく生まれた社会問題に取り組む全ての組織。社会問題を新しい技術・資源に変換させる。 (社会問題 -> 技術・資源)
-7. 意味付け : 人々が価値観に基づいて製品や サービスを使用する理由。人々の価値観を新しい日常の空間とユーザー体験に変換させる。 (人々の価値観 -> 日常の空間とユーザー体験)
+7. 意味付け : 人々が価値観に基づいて製品やサービスを使用する理由。人々の価値観を新しい日常の空間とユーザー体験に変換させる。 (人々の価値観 -> 日常の空間とユーザー体験)
 8. 製品・サービス: 組織が保有する技術や資源を利用して創造する製品やサービス。技術・資源を日常の空間とユーザー体験に変換させる。 (技術・資源 -> 日常の空間とユーザー体験)
 9. 習慣化 : 人々が価値観に基づいて行う習慣。人々の価値観を制度に変換させる。 (人々の価値観 -> 制度)
 10. パラダイム : その時代の支配的な技術や資源として、次世代にも影響をもたらすもの。技術・資源を前衛的社会問題に変換させる。 (技術・資源 -> 前衛的社会問題)
 11. ビジネスエコシステム : 日常の空間やユーザー体験を維持するために、構成する製品・サービスに関わる関係者が形成するネットワーク 。日常の空間とユーザー体験を制度に変換させる。 (日常の空間とユーザー体験 -> 制度)
 12. アート(社会批評): 人々が気づかない問題を、主観的/内発的な視点で捉える人の信念。日常の空間とユーザー体験に違和感を持ち、問題を提示する役割を持つ。日常の空間とユーザー体験を前衛的社会問題に変換させる。 (日常の空間とユーザー体験 -> 前衛的社会問題)
 
-###Sカーブは、時間の経過に伴うテクノロジーの進化を表すモデルです。以下の2つの段階で構成され、各段階の説明は次のとおりです。
-##第1段階：醗酵期: この段階では、技術開発は着実に進歩しますが、その進展は緩やかです。主として既存の問題解決や現行機能の改善に焦点が当てられます。この期間の終わりには、現在の問題が解決される一方で、新たな問題が発生します。
+###Sカーブは、時間の経過に伴うテクノロジーの進化を表すモデルです。以下の2つの段階で構成され、各段階の説明は次の通りです。
+##第1段階：醸酵期: この段階では、技術開発は着実に進歩しますが、その進展は緩やかです。主として既存の問題解決や現行機能の改善に焦点が当てられます。この期間の終わりには、現在の問題が解決される一方で、新たな問題が発生します。
 ##第2段階：離陸期: この段階では、テクノロジーは急成長期に入ります。様々な革新的なアイデアが提案され、それらが最終的に組み合わされることで、全く新しい形の技術が生まれます。この期間の終わりには、テクノロジーは大きな発展を遂げますが、同時に新たな問題も引き起こします。
 """
 
@@ -103,7 +98,7 @@ def parse_json_response(gpt_output: str) -> dict:
         raise e
 
 # ========== Stage 1: Tavily Functions ==========
-def generate_question_for_object(client, product: str, object_name: str, object_description: str) -> str:
+def generate_question_for_object(product: str, object_name: str, object_description: str) -> str:
     prompt = f"""
 {product}について、APモデルの対象「{object_name}」({object_description})に関する自然で完整な質問文を1つ生成してください。
 質問は以下の条件を満たしてください：
@@ -112,10 +107,10 @@ def generate_question_for_object(client, product: str, object_name: str, object_
 - 検索エンジンで良い結果が得られそうな質問
 質問のみを出力してください：
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0)
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0)
     return response.choices[0].message.content.strip()
 
-def generate_question_for_arrow(client, product: str, arrow_name: str, arrow_info: dict) -> str:
+def generate_question_for_arrow(product: str, arrow_name: str, arrow_info: dict) -> str:
     prompt = f"""
 {product}について、APモデルの矢「{arrow_name}」に関する自然で完整な質問文を生成してください。
 矢の詳細：
@@ -131,7 +126,7 @@ def generate_question_for_arrow(client, product: str, arrow_name: str, arrow_inf
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0)
     return response.choices[0].message.content.strip()
 
-def search_and_get_answer(tavily_client, question: str) -> str:
+def search_and_get_answer(question: str) -> str:
     try:
         response = tavily_client.search(query=question, include_answer=True)
         answer = response.get('answer', '')
@@ -140,7 +135,7 @@ def search_and_get_answer(tavily_client, question: str) -> str:
         return results[0].get('content', "情報が見つかりませんでした") if results else "情報が見つかりませんでした"
     except Exception as e: return f"検索エラー: {str(e)}"
 
-def build_ap_element(client, product: str, element_type: str, element_name: str, answer: str) -> dict:
+def build_ap_element(product: str, element_type: str, element_name: str, answer: str) -> dict:
     if element_type == "対象":
         prompt = f"""
 {product}の{element_name}について、以下の情報からAP要素を構築してください：
@@ -161,16 +156,16 @@ def build_ap_element(client, product: str, element_type: str, element_name: str,
         return json.loads(response.choices[0].message.content.strip())
     except Exception: return None
 
-def process_element(client, tavily_client, product: str, element_type: str, name: str, info: dict):
+def process_element(product: str, element_type: str, name: str, info: dict):
     try:
         if element_type == "対象":
-            question = generate_question_for_object(client, product, name, info)
+            question = generate_question_for_object(product, name, info)
         else:
-            question = generate_question_for_arrow(client, product, name, info)
-        answer = search_and_get_answer(tavily_client, question)
+            question = generate_question_for_arrow(product, name, info)
+        answer = search_and_get_answer(question)
         if "検索エラー" in answer or not answer:
             return None, None
-        element_data = build_ap_element(client, product, element_type, name, answer)
+        element_data = build_ap_element(product, element_type, name, answer)
         if not element_data:
             return None, None
         return {"type": element_type, "name": name, "data": element_data}, f"## {name}\n{answer}"
@@ -178,7 +173,7 @@ def process_element(client, tavily_client, product: str, element_type: str, name
         st.warning(f"要素「{name}」の処理中にエラーが発生しました: {e}")
         return None, None
 
-def build_stage1_ap_with_tavily(client, tavily_client, product: str, status_container):
+def build_stage1_ap_with_tavily(product: str, status_container):
     ap_model = {"nodes": [], "arrows": []}
     all_answers = []
     MAX_WORKERS = 5
@@ -189,7 +184,7 @@ def build_stage1_ap_with_tavily(client, tavily_client, product: str, status_cont
         tasks.append((product, "矢", name, info))
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_task = {executor.submit(process_element, client, tavily_client, *task): task for task in tasks}
+        future_to_task = {executor.submit(process_element, *task): task for task in tasks}
         for future in concurrent.futures.as_completed(future_to_task):
             task_name = future_to_task[future][2]
             status_container.write(f"  - 要素「{task_name}」を検索中...")
@@ -206,7 +201,7 @@ def build_stage1_ap_with_tavily(client, tavily_client, product: str, status_cont
     return introduction, ap_model
 
 # ========== Stage 2: Multi-Agent Functions (Modified for 2 agents, 1 iteration) ==========
-def generate_agents(client, topic: str) -> list:
+def generate_agents(topic: str) -> list:
     prompt = f"""
 テーマ「{topic}」について、APモデルの要素生成を行う2つの完全に異なる専門性を持つエージェントを生成してください。
 各エージェントは異なる視点と専門知識を持ち、創造的で革新的な未来予測を提供できる必要があります。
@@ -217,7 +212,7 @@ def generate_agents(client, topic: str) -> list:
     result = parse_json_response(response.choices[0].message.content)
     return result["agents"]
 
-def agent_generate_element(client, agent: dict, topic: str, element_type: str, previous_stage_ap: dict, user_vision: str, context: dict) -> str:
+def agent_generate_element(agent: dict, topic: str, element_type: str, previous_stage_ap: dict, user_vision: str, context: dict) -> str:
     context_info = ""
     if element_type == "日常の空間とユーザー体験": 
         context_info = f"##新しい技術や資源:\n{context.get('技術や資源', '')}"
@@ -237,7 +232,7 @@ def agent_generate_element(client, agent: dict, topic: str, element_type: str, p
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2)
     return response.choices[0].message.content.strip()
 
-def judge_element_proposals(client, proposals: list[dict], element_type: str, topic: str) -> dict:
+def judge_element_proposals(proposals: list[dict], element_type: str, topic: str) -> dict:
     proposals_text = "".join([f"##提案{i+1} (エージェント: {p['agent_name']}):\n{p['proposal']}\n\n" for i, p in enumerate(proposals)])
     prompt = f"""
 以下は、「{topic}」の「{element_type}」に関する{len(proposals)}つの提案です。各提案を創造性、未来的視点の観点から評価し、最も想像力がある提案を選択してください。
@@ -248,12 +243,12 @@ def judge_element_proposals(client, proposals: list[dict], element_type: str, to
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
     return parse_json_response(response.choices[0].message.content)
 
-def generate_single_element_with_iterations(client, status_container, topic: str, element_type: str, previous_stage_ap: dict, agents: list, user_vision: str, context: dict) -> dict:
+def generate_single_element_with_iterations(status_container, topic: str, element_type: str, previous_stage_ap: dict, agents: list, user_vision: str, context: dict) -> dict:
     # 単一反復のみ
     status_container.write(f"    - {len(agents)}人のエージェントが提案を生成中...")
     proposals = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(agents)) as executor:
-        future_to_agent = {executor.submit(agent_generate_element, client, agent, topic, element_type, previous_stage_ap, user_vision, context): agent for agent in agents}
+        future_to_agent = {executor.submit(agent_generate_element, agent, topic, element_type, previous_stage_ap, user_vision, context): agent for agent in agents}
         for future in concurrent.futures.as_completed(future_to_agent):
             agent = future_to_agent[future]
             try:
@@ -266,7 +261,7 @@ def generate_single_element_with_iterations(client, status_container, topic: str
         return {"element_type": element_type, "error": "提案が生成されませんでした。"}
     
     status_container.write(f"    - 提案を評価中...")
-    judgment = judge_element_proposals(client, proposals, element_type, topic)
+    judgment = judge_element_proposals(proposals, element_type, topic)
     
     # 単一反復結果を返す
     return {
@@ -275,7 +270,7 @@ def generate_single_element_with_iterations(client, status_container, topic: str
         "final_decision": {"final_selected_content": judgment["selected_content"], "final_selection_reason": judgment["selection_reason"]}
     }
 
-def build_complete_ap_model(client, topic: str, previous_ap: dict, new_elements: dict, stage: int, user_vision: str) -> dict:
+def build_complete_ap_model(topic: str, previous_ap: dict, new_elements: dict, stage: int, user_vision: str) -> dict:
     prompt = f"""
 第{stage}段階のAPモデルを構築してください。
 ##前段階の情報:
@@ -296,7 +291,7 @@ def build_complete_ap_model(client, topic: str, previous_ap: dict, new_elements:
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], response_format={"type": "json_object"})
     return parse_json_response(response.choices[0].message.content)
 
-def generate_stage_introduction(client, topic: str, stage: int, new_elements: dict, user_vision: str) -> str:
+def generate_stage_introduction(topic: str, stage: int, new_elements: dict, user_vision: str) -> str:
     prompt = f"""
 第{stage}段階の{topic}について、以下の新たに生成された要素に基づいて紹介文を作成してください。
 ##生成された要素:
@@ -307,11 +302,11 @@ def generate_stage_introduction(client, topic: str, stage: int, new_elements: di
 {user_vision}
 第{stage}段階の{topic}がどのような状況になっているか、100字以内の日本語で簡潔に紹介文を作成してください。
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0)
-    return response.choices[0].message.content.strip()
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0)
+    return response.choices[0].message.content
 
 # ========== Story Generation Functions (Modified for 2 stages) ==========
-def generate_outline(client, theme: str, scene: str, ap_model_history: list) -> str:
+def generate_outline(theme: str, scene: str, ap_model_history: list) -> str:
     prompt = f"""
 あなたはプロのSF作家です。以下の情報に基づき、「{theme}」をテーマにした短編SF小説のあらすじを作成してください。
 ## 物語の舞台 (Story Setting):
@@ -325,7 +320,7 @@ def generate_outline(client, theme: str, scene: str, ap_model_history: list) -> 
     response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
     return response.choices[0].message.content
 
-def generate_story(client, theme: str, outline: str) -> str:
+def generate_story(theme: str, outline: str) -> str:
     prompt = f"""
 あなたはプロのSF作家です。以下のあらすじに基づき、「{theme}」をテーマにした短編SF小説を執筆してください。
 ## 物語のあらすじ：
@@ -387,20 +382,6 @@ def show_agent_proposals(element_result):
     st.write(f"**選ばれた内容:** {judgment['selected_content']}")
     st.write(f"**選定理由:** {judgment['selection_reason']}")
 
-# ========== API Key Validation Function ==========
-def validate_openai_key(api_key: str) -> bool:
-    """OpenAI API keyを簡単なテスト呼び出しで検証"""
-    try:
-        test_client = OpenAI(api_key=api_key)
-        # 最小限のテスト呼び出し
-        response = test_client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": "Hi"}],
-        )
-        return True
-    except Exception:
-        return False
-
 # ========== Main UI & State Management ==========
 st.title("🚀 近未来SF生成器（デモ版）")
 
@@ -409,71 +390,27 @@ if 'process_started' not in st.session_state:
     st.session_state.process_started = False
     st.session_state.topic = ""
     st.session_state.scene = ""
-    st.session_state.user_api_key = ""
     st.session_state.ap_history = []
     st.session_state.descriptions = []
     st.session_state.story = ""
     st.session_state.agents = []
     st.session_state.stage_elements_results = {'stage2': []}
-    st.session_state.client = None
-    st.session_state.tavily_client = None
 
 # --- STEP 0: 初期入力画面 ---
 if not st.session_state.process_started:
-    st.markdown("**OpenAI API キー**、探求したい**テーマ**と物語の**舞台**を入力してください。AIが2段階の未来を予測し、SF小説を最後まで自動で生成します。")
+    st.markdown("探求したい**テーマ**と物語の**舞台**を入力してください。AIが2段階の未来を予測し、SF小説を最後まで自動で生成します。")
     
-    # API Key input
-    st.markdown("### 🔑 API設定")
-    api_key_input = st.text_input(
-        "OpenAI API キーを入力してください", 
-        type="password",
-        placeholder="sk-...",
-        help="あなたのAPIキーはすべてのAI生成に使用されます。永続的に保存されることはありません。"
-    )
-    
-    # API key検証
-    key_valid = False
-    if api_key_input:
-        with st.spinner("APIキーを検証中..."):
-            key_valid = validate_openai_key(api_key_input)
-        if key_valid:
-            st.success("✅ APIキーが有効です！")
-        else:
-            st.error("❌ 無効なAPIキーです。確認して再試行してください。")
-    
-    st.markdown("### 📝 コンテンツ設定")
     topic_input = st.text_input("探求したいテーマを入力してください", placeholder="例：八ツ橋、自動運転、量子コンピュータ")
     scene_input = st.text_area("物語の舞台を具体的に記述してください", placeholder="例：夕暮れ時の京都、八ツ橋を売るお店")
 
-    # すべての入力が有効かチェック
-    all_inputs_valid = api_key_input and key_valid and topic_input and scene_input
-    
-    if st.button("APと物語生成開始 →", type="primary", disabled=not all_inputs_valid):
-        # ユーザーのAPIキーでクライアントを初期化
-        client, tavily_client, error = initialize_clients(api_key_input)
-        
-        if error:
-            st.error(f"❌ クライアントの初期化に失敗しました: {error}")
-        else:
-            st.session_state.topic = topic_input
-            st.session_state.scene = scene_input
-            st.session_state.user_api_key = api_key_input
-            st.session_state.client = client
-            st.session_state.tavily_client = tavily_client
-            st.session_state.process_started = True
-            st.rerun()
+    if st.button("APと物語生成開始 →", type="primary", disabled=not topic_input or not scene_input):
+        st.session_state.topic = topic_input
+        st.session_state.scene = scene_input
+        st.session_state.process_started = True
+        st.rerun()
 
 # --- 全自動実行プロセス ---
 else:
-    # クライアントが初期化されていることを確認
-    if not st.session_state.client or not st.session_state.tavily_client:
-        client, tavily_client, error = initialize_clients(st.session_state.user_api_key)
-        if error:
-            st.error(f"❌ クライアント初期化エラー: {error}")
-            st.stop()
-        st.session_state.client = client
-        st.session_state.tavily_client = tavily_client
-    
     st.header(f"テーマ: {st.session_state.topic}")
     user_vision = f"「{st.session_state.topic}」が技術の進化を通じて、未来の発展を想像する。"
 
@@ -483,7 +420,7 @@ else:
     # --- Stage 1 表示 ---
     if len(st.session_state.ap_history) >= 1:
         st.markdown("---")
-        st.header("Stage 1: 醗酵期（現状分析）")
+        st.header("Stage 1: 醸酵期（現状分析）")
         st.info(st.session_state.descriptions[0])
         show_visualization(st.session_state.ap_history[0:1])
 
@@ -518,7 +455,7 @@ else:
         st.text_area("SF小説", st.session_state.story, height=400)
         
         with st.expander("📈 2段階の未来予測の要約を見る"):
-            stages_info = ["第1段階：醗酵期", "第2段階：離陸期"]
+            stages_info = ["第1段階：醸酵期", "第2段階：離陸期"]
             for i, stage_name in enumerate(stages_info):
                 st.markdown(f"**{stage_name}**")
                 st.info(st.session_state.descriptions[i])
@@ -528,8 +465,8 @@ else:
     # ==================================================================
     # --- Stage 1 生成 ---
     if len(st.session_state.ap_history) == 0:
-        with st.status("第1段階：TavilyによるWeb情報収集とAPモデル構築中...", expanded=True) as status:
-            intro1, model1 = build_stage1_ap_with_tavily(st.session_state.client, st.session_state.tavily_client, st.session_state.topic, status)
+        with st.status("第1段階：Tavilyによる情報収集とAPモデル構築中...", expanded=True) as status:
+            intro1, model1 = build_stage1_ap_with_tavily(st.session_state.topic, status)
             st.session_state.descriptions.append(intro1)
             st.session_state.ap_history.append({"stage": 1, "ap_model": model1})
         st.rerun()
@@ -539,7 +476,7 @@ else:
         # Agent生成
         if not st.session_state.agents:
             with st.spinner("分析のための専門家AIエージェントを生成中..."):
-                st.session_state.agents = generate_agents(st.session_state.client, st.session_state.topic)
+                st.session_state.agents = generate_agents(st.session_state.topic)
             st.rerun()
         
         # 要素生成
@@ -550,7 +487,7 @@ else:
             with st.status(f"第2段階「{elem_type}」を生成中...", expanded=True) as status:
                 # 前の要素の結果をコンテキストとして渡す
                 context = {r['element_type']: r['final_decision']['final_selected_content'] for r in s2_results}
-                result = generate_single_element_with_iterations(st.session_state.client, status, st.session_state.topic, elem_type, st.session_state.ap_history[0]['ap_model'], st.session_state.agents, user_vision, context)
+                result = generate_single_element_with_iterations(status, st.session_state.topic, elem_type, st.session_state.ap_history[0]['ap_model'], st.session_state.agents, user_vision, context)
                 s2_results.append(result)
             st.rerun()
 
@@ -559,9 +496,9 @@ else:
             with st.status("第2段階：APモデル全体を構築中...", expanded=True) as status:
                 context = {r['element_type']: r['final_decision']['final_selected_content'] for r in s2_results}
                 status.update(label="第2段階：APモデル全体を構築中...")
-                model2 = build_complete_ap_model(st.session_state.client, st.session_state.topic, st.session_state.ap_history[0]['ap_model'], context, 2, user_vision)
+                model2 = build_complete_ap_model(st.session_state.topic, st.session_state.ap_history[0]['ap_model'], context, 2, user_vision)
                 status.update(label="第2段階：紹介文を生成中...")
-                intro2 = generate_stage_introduction(st.session_state.client, st.session_state.topic, 2, context, user_vision)
+                intro2 = generate_stage_introduction(st.session_state.topic, 2, context, user_vision)
                 st.session_state.descriptions.append(intro2)
                 st.session_state.ap_history.append({"stage": 2, "ap_model": model2})
             st.rerun()
@@ -569,9 +506,9 @@ else:
     # --- 物語 生成 ---
     elif len(st.session_state.ap_history) == 2 and not st.session_state.story:
         with st.spinner("最終段階：SF小説のあらすじを生成中..."):
-            outline = generate_outline(st.session_state.client, st.session_state.topic, st.session_state.scene, st.session_state.ap_history)
+            outline = generate_outline(st.session_state.topic, st.session_state.scene, st.session_state.ap_history)
         with st.spinner("最終段階：あらすじからSF短編小説を生成中..."):
-            story = generate_story(st.session_state.client, st.session_state.topic, outline)
+            story = generate_story(st.session_state.topic, outline)
             st.session_state.story = story
         st.success("✅ 全ての生成プロセスが完了しました！")
         time.sleep(1)
