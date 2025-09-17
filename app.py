@@ -107,7 +107,7 @@ def generate_question_for_object(product: str, object_name: str, object_descript
 - 検索エンジンで良い結果が得られそうな質問
 質問のみを出力してください：
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0)
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
     return response.choices[0].message.content.strip()
 
 def generate_question_for_arrow(product: str, arrow_name: str, arrow_info: dict) -> str:
@@ -123,7 +123,7 @@ def generate_question_for_arrow(product: str, arrow_name: str, arrow_info: dict)
 - {product}における具体的な事例や関係性を発見できる質問
 質問のみを出力してください：
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0)
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": prompt}])
     return response.choices[0].message.content.strip()
 
 def search_and_get_answer(question: str) -> str:
@@ -152,7 +152,7 @@ def build_ap_element(product: str, element_type: str, element_name: str, answer:
 {{"source": "{arrow_info['from']}", "target": "{arrow_info['to']}", "type": "{element_name}", "definition": "具体的な変換関係の説明（100文字以内）", "example": "この矢に関する具体的な例"}}
 """
     try:
-        response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
+        response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
         return json.loads(response.choices[0].message.content.strip())
     except Exception: return None
 
@@ -196,7 +196,7 @@ def build_stage1_ap_with_tavily(product: str, status_container):
     
     status_container.write("紹介文を生成中...")
     intro_prompt = f"以下の{product}に関する様々な側面からの情報をもとに、{product}がどのようなものか、100字以内の日本語で簡潔に紹介文を作成してください。\n### 収集された情報:\n{''.join(all_answers)}"
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": intro_prompt}], temperature=0)
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": intro_prompt}])
     introduction = response.choices[0].message.content
     return introduction, ap_model
 
@@ -208,7 +208,7 @@ def generate_agents(topic: str) -> list:
 以下のJSON形式で出力してください：
 {{ "agents": [ {{ "name": "エージェント名", "expertise": "専門分野", "personality": "性格・特徴", "perspective": "独特な視点" }} ] }}
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
     result = parse_json_response(response.choices[0].message.content)
     return result["agents"]
 
@@ -229,7 +229,7 @@ def agent_generate_element(agent: dict, topic: str, element_type: str, previous_
 {context_info}
 あなたの専門性と視点から、次段階における「{element_type}」の内容を創造的で革新的に生成してください。Sカーブ理論に基づき、前段階からの発展と新たな可能性を考慮し、あなたならではの独創的で素晴らしい想像力があるアイデアを**提案内容のテキストのみで、200字以内で回答してください。JSON形式や余計な説明は不要です。**
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2)
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2)
     return response.choices[0].message.content.strip()
 
 def judge_element_proposals(proposals: list[dict], element_type: str, topic: str) -> dict:
@@ -240,7 +240,7 @@ def judge_element_proposals(proposals: list[dict], element_type: str, topic: str
 以下のJSON形式で出力してください：
 {{ "selected_proposal": "選択された提案のエージェント名", "selected_content": "選択された{element_type}の提案内容", "selection_reason": "選択理由（150字以内）", "creativity_score": "創造性評価（1-10）", "future_vision_score": "未来的視点評価（1-10）" }}
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
     return parse_json_response(response.choices[0].message.content)
 
 def generate_single_element_with_iterations(status_container, topic: str, element_type: str, previous_stage_ap: dict, agents: list, user_vision: str, context: dict) -> dict:
@@ -288,7 +288,7 @@ def build_complete_ap_model(topic: str, previous_ap: dict, new_elements: dict, s
 以下のJSON形式で出力してください：
 {{"nodes": [{{"type": "対象名", "definition": "この対象に関する説明", "example": "この対象に関する具体的な例"}}], "arrows": [{{"source": "起点対象", "target": "終点対象", "type": "矢名", "definition": "この矢に関する説明", "example": "この矢に関する具体的な例"}}]}}
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], response_format={"type": "json_object"})
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], response_format={"type": "json_object"})
     return parse_json_response(response.choices[0].message.content)
 
 def generate_stage_introduction(topic: str, stage: int, new_elements: dict, user_vision: str) -> str:
@@ -302,7 +302,7 @@ def generate_stage_introduction(topic: str, stage: int, new_elements: dict, user
 {user_vision}
 第{stage}段階の{topic}がどのような状況になっているか、100字以内の日本語で簡潔に紹介文を作成してください。
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0)
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": prompt}])
     return response.choices[0].message.content
 
 # ========== Story Generation Functions (Modified for 2 stages) ==========
@@ -317,7 +317,7 @@ def generate_outline(theme: str, scene: str, ap_model_history: list) -> str:
 {json.dumps(ap_model_history[1]['ap_model'], ensure_ascii=False, indent=2)}
 上記の情報に基づき、指定された舞台で繰り広げられる物語の主要なプロット、登場人物、そして中心となる葛藤を含む物語のあらすじを作成してください。あらすじはSF小説のスタイルに沿った、革新的で魅力的なものである必要があります。物語は第1段階から第2段階への移行に焦点を当ててください。
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
     return response.choices[0].message.content
 
 def generate_story(theme: str, outline: str) -> str:
@@ -327,7 +327,7 @@ def generate_story(theme: str, outline: str) -> str:
 {outline}
 このあらすじに沿って、一貫性のある物語を執筆してください。物語は革新的で魅力的、かつSFのスタイルに沿ったものである必要があります。文字数は日本語で1500字程度でお願いします。
 """
-    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
+    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
     return response.choices[0].message.content
 
 # ========== UI Functions for Visualization (Modified for 2 stages) ==========
