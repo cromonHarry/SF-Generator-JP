@@ -14,7 +14,7 @@ st.set_page_config(page_title="近未来SF生成器", layout="wide")
 
 # ========== Client Initialization ==========
 try:
-    # 直接从Streamlit secrets配置中读取API key
+    # Streamlitのsecrets設定から直接APIキーを読み込む
     client = OpenAI(api_key=st.secrets["openai"]["api_key"])
     tavily_client = TavilyClient(api_key=st.secrets["tavily"]["api_key"])
 except KeyError as e:
@@ -60,11 +60,11 @@ APは、18の項目(6個の対象と12個の矢)によって構成される社�
 
 AP_MODEL_STRUCTURE = {
     "対象": {
-        "前衛的社会問題": "技術や資源のパラダイムによって引き起こされる社会問題", 
+        "前衛的社会問題": "技術や資源のパラダイムによって引き起こされる社会問題",
         "人々の価値観": "先進的な人々が認識する価値観や理想",
-        "社会問題": "社会で認識され解決すべき問題", 
+        "社会問題": "社会で認識され解決すべき問題",
         "技術や資源": "問題解決のために組織化された技術や資源",
-        "日常の空間とユーザー体験": "製品・サービスによる物理空間とユーザー体験", 
+        "日常の空間とユーザー体験": "製品・サービスによる物理空間とユーザー体験",
         "制度": "習慣やビジネスを円滑にする制度や規則"
     },
     "矢": {
@@ -107,7 +107,7 @@ def generate_question_for_object(product: str, object_name: str, object_descript
 - 検索エンジンで良い結果が得られそうな質問
 質問のみを出力してください：
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0)
     return response.choices[0].message.content.strip()
 
 def generate_question_for_arrow(product: str, arrow_name: str, arrow_info: dict) -> str:
@@ -123,7 +123,7 @@ def generate_question_for_arrow(product: str, arrow_name: str, arrow_info: dict)
 - {product}における具体的な事例や関係性を発見できる質問
 質問のみを出力してください：
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": prompt}])
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0)
     return response.choices[0].message.content.strip()
 
 def search_and_get_answer(question: str) -> str:
@@ -152,7 +152,7 @@ def build_ap_element(product: str, element_type: str, element_name: str, answer:
 {{"source": "{arrow_info['from']}", "target": "{arrow_info['to']}", "type": "{element_name}", "definition": "具体的な変換関係の説明（100文字以内）", "example": "この矢に関する具体的な例"}}
 """
     try:
-        response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
+        response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
         return json.loads(response.choices[0].message.content.strip())
     except Exception: return None
 
@@ -196,7 +196,7 @@ def build_stage1_ap_with_tavily(product: str, status_container):
     
     status_container.write("紹介文を生成中...")
     intro_prompt = f"以下の{product}に関する様々な側面からの情報をもとに、{product}がどのようなものか、100字以内の日本語で簡潔に紹介文を作成してください。\n### 収集された情報:\n{''.join(all_answers)}"
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": intro_prompt}])
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": intro_prompt}], temperature=0)
     introduction = response.choices[0].message.content
     return introduction, ap_model
 
@@ -208,15 +208,15 @@ def generate_agents(topic: str) -> list:
 以下のJSON形式で出力してください：
 {{ "agents": [ {{ "name": "エージェント名", "expertise": "専門分野", "personality": "性格・特徴", "perspective": "独特な視点" }} ] }}
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
     result = parse_json_response(response.choices[0].message.content)
     return result["agents"]
 
 def agent_generate_element(agent: dict, topic: str, element_type: str, previous_stage_ap: dict, user_vision: str, context: dict) -> str:
     context_info = ""
-    if element_type == "日常の空間とユーザー体験": 
+    if element_type == "日常の空間とユーザー体験":
         context_info = f"##新しい技術や資源:\n{context.get('技術や資源', '')}"
-    elif element_type == "前衛的社会問題": 
+    elif element_type == "前衛的社会問題":
         context_info = f"##新しい技術や資源:\n{context.get('技術や資源', '')}\n##新しい日常の空間とユーザー体験:\n{context.get('日常の空間とユーザー体験', '')}"
     
     prompt = f"""
@@ -229,7 +229,7 @@ def agent_generate_element(agent: dict, topic: str, element_type: str, previous_
 {context_info}
 あなたの専門性と視点から、次段階における「{element_type}」の内容を創造的で革新的に生成してください。Sカーブ理論に基づき、前段階からの発展と新たな可能性を考慮し、あなたならではの独創的で素晴らしい想像力があるアイデアを**提案内容のテキストのみで、200字以内で回答してください。JSON形式や余計な説明は不要です。**
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2)
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2)
     return response.choices[0].message.content.strip()
 
 def judge_element_proposals(proposals: list[dict], element_type: str, topic: str) -> dict:
@@ -240,7 +240,7 @@ def judge_element_proposals(proposals: list[dict], element_type: str, topic: str
 以下のJSON形式で出力してください：
 {{ "selected_proposal": "選択された提案のエージェント名", "selected_content": "選択された{element_type}の提案内容", "selection_reason": "選択理由（150字以内）", "creativity_score": "創造性評価（1-10）", "future_vision_score": "未来的視点評価（1-10）" }}
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.2, response_format={"type": "json_object"})
     return parse_json_response(response.choices[0].message.content)
 
 def generate_single_element_with_iterations(status_container, topic: str, element_type: str, previous_stage_ap: dict, agents: list, user_vision: str, context: dict) -> dict:
@@ -254,7 +254,7 @@ def generate_single_element_with_iterations(status_container, topic: str, elemen
             try:
                 proposal_content = future.result()
                 proposals.append({"agent_name": agent['name'], "proposal": proposal_content})
-            except Exception as exc: 
+            except Exception as exc:
                 st.warning(f"{agent['name']}の提案生成中にエラー: {exc}")
     
     if not proposals:
@@ -265,7 +265,7 @@ def generate_single_element_with_iterations(status_container, topic: str, elemen
     
     # 単一反復結果を返す
     return {
-        "element_type": element_type, 
+        "element_type": element_type,
         "iteration": {"iteration_number": 1, "all_agent_proposals": proposals, "judgment": judgment},
         "final_decision": {"final_selected_content": judgment["selected_content"], "final_selection_reason": judgment["selection_reason"]}
     }
@@ -288,7 +288,7 @@ def build_complete_ap_model(topic: str, previous_ap: dict, new_elements: dict, s
 以下のJSON形式で出力してください：
 {{"nodes": [{{"type": "対象名", "definition": "この対象に関する説明", "example": "この対象に関する具体的な例"}}], "arrows": [{{"source": "起点対象", "target": "終点対象", "type": "矢名", "definition": "この矢に関する説明", "example": "この矢に関する具体的な例"}}]}}
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], response_format={"type": "json_object"})
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], response_format={"type": "json_object"})
     return parse_json_response(response.choices[0].message.content)
 
 def generate_stage_introduction(topic: str, stage: int, new_elements: dict, user_vision: str) -> str:
@@ -302,7 +302,7 @@ def generate_stage_introduction(topic: str, stage: int, new_elements: dict, user
 {user_vision}
 第{stage}段階の{topic}がどのような状況になっているか、100字以内の日本語で簡潔に紹介文を作成してください。
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "user", "content": prompt}])
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}], temperature=0)
     return response.choices[0].message.content
 
 # ========== Story Generation Functions (Modified for 2 stages) ==========
@@ -317,7 +317,7 @@ def generate_outline(theme: str, scene: str, ap_model_history: list) -> str:
 {json.dumps(ap_model_history[1]['ap_model'], ensure_ascii=False, indent=2)}
 上記の情報に基づき、指定された舞台で繰り広げられる物語の主要なプロット、登場人物、そして中心となる葛藤を含む物語のあらすじを作成してください。あらすじはSF小説のスタイルに沿った、革新的で魅力的なものである必要があります。物語は第1段階から第2段階への移行に焦点を当ててください。
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
     return response.choices[0].message.content
 
 def generate_story(theme: str, outline: str) -> str:
@@ -327,8 +327,31 @@ def generate_story(theme: str, outline: str) -> str:
 {outline}
 このあらすじに沿って、一貫性のある物語を執筆してください。物語は革新的で魅力的、かつSFのスタイルに沿ったものである必要があります。文字数は日本語で1500字程度でお願いします。
 """
-    response = client.chat.completions.create(model="gpt-5", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
+    response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}])
     return response.choices[0].message.content
+
+# ADDED: Function to generate story summary in Japanese
+def generate_story_summary_jp(story_text: str, creative_ideas: list) -> str:
+    """物語の要約を生成し、重要な創造的アイデアを強調する"""
+    ideas_text = "、".join([f"「{idea}」" for idea in creative_ideas])
+    prompt = f"""
+以下のSF小説を、10文以内の日本語で簡潔に要約してください。
+要約の中では、物語の展開の核となった以下の重要な創造的コンセプトを特定し、Markdownの**太字**を使用して強調してください。
+
+強調すべき重要な創造的コンセプトのリスト: {ideas_text}
+
+小説全文:
+---
+{story_text}
+---
+
+日本語の要約のみを出力してください。
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content.strip()
 
 # ========== UI Functions for Visualization (Modified for 2 stages) ==========
 def show_visualization(ap_history, height=750):
@@ -393,6 +416,7 @@ if 'process_started' not in st.session_state:
     st.session_state.ap_history = []
     st.session_state.descriptions = []
     st.session_state.story = ""
+    st.session_state.story_summary = "" # ADDED: story_summaryの初期化
     st.session_state.agents = []
     st.session_state.stage_elements_results = {'stage2': []}
 
@@ -400,6 +424,7 @@ if 'process_started' not in st.session_state:
 if not st.session_state.process_started:
     st.markdown("探求したい**テーマ**と物語の**舞台**を入力してください。AIが2段階の未来を予測し、SF小説を最後まで自動で生成します。")
     
+    st.markdown("### 📝 コンテンツ設定")
     topic_input = st.text_input("探求したいテーマを入力してください", placeholder="例：八ツ橋、自動運転、量子コンピュータ")
     scene_input = st.text_area("物語の舞台を具体的に記述してください", placeholder="例：夕暮れ時の京都、八ツ橋を売るお店")
 
@@ -453,6 +478,10 @@ else:
         st.markdown(f"**シーン設定:** {st.session_state.scene}")
         st.markdown("### 📚 生成されたSF短編小説")
         st.text_area("SF小説", st.session_state.story, height=400)
+        
+        # ADDED: 物語の要約を表示するセクション
+        st.markdown("### 📖 物語の要約")
+        st.markdown(st.session_state.story_summary)
         
         with st.expander("📈 2段階の未来予測の要約を見る"):
             stages_info = ["第1段階：醸酵期", "第2段階：離陸期"]
@@ -510,6 +539,17 @@ else:
         with st.spinner("最終段階：あらすじからSF短編小説を生成中..."):
             story = generate_story(st.session_state.topic, outline)
             st.session_state.story = story
+        
+        # ADDED: 物語が生成された後に要約を生成
+        with st.spinner("最終段階：物語の要約を生成中..."):
+            # ステージ2の創造的なアイデアを収集
+            creative_ideas = [
+                r['final_decision']['final_selected_content']
+                for r in st.session_state.stage_elements_results['stage2']
+            ]
+            summary = generate_story_summary_jp(st.session_state.story, creative_ideas)
+            st.session_state.story_summary = summary
+            
         st.success("✅ 全ての生成プロセスが完了しました！")
         time.sleep(1)
         st.rerun()
